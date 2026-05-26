@@ -1,0 +1,34 @@
+<launch>
+  <!-- 手柄遥控 RoboMaster EP -->
+
+  <arg name="ep_sn" default="" doc="RoboMaster EP 序列号"/>
+  <arg name="ep_conn_type" default="ap" doc="连接模式: sta(路由器)/ap(直连)/rndis(USB)"/>
+  <arg name="rviz" default="true" doc="是否启动 RViz"/>
+
+  <!-- 底盘驱动 -->
+  <include file="$(find rm_ep_driver)/launch/rm_ep_bringup.launch">
+    <arg name="ep_sn" value="$(arg ep_sn)"/>
+    <arg name="ep_conn_type" value="$(arg ep_conn_type)"/>
+    <arg name="enable_cmd_vel" value="true"/>
+  </include>
+
+  <!-- 手柄驱动 -->
+  <node name="joy_node" pkg="joy" type="joy_node" output="screen">
+    <param name="autorepeat_rate" value="10.0"/>
+  </node>
+
+  <!-- 手柄转 cmd_vel -->
+  <node pkg="teleop_twist_joy" type="teleop_node" name="teleop_node" output="screen">
+    <param name="enable_button" value="4"/>
+    <param name="axis_linear_x" value="1"/>
+    <param name="scale_linear_x" value="0.5"/>
+    <param name="axis_linear_y" value="0"/>
+    <param name="scale_linear_y" value="0.5"/>
+    <param name="axis_angular" value="3"/>
+    <param name="scale_angular" value="1.0"/>
+  </node>
+
+  <!-- RViz 可视化 (可选) -->
+  <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find rm_ep_navigation)/rviz/mapping_nav.rviz"/>
+</launch>
