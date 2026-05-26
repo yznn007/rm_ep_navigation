@@ -20,7 +20,7 @@ enable_cmd_vel: true       # 是否启用 /cmd_vel 控制
 
 # 相机流（可选）
 enable_camera: true               # 是否启用相机流，发布 /camera/image_raw
-camera_frame_id: "camera_link"                # 相机图像 frame_id
+camera_frame_id: "camera_link_optical_frame"   # 相机图像 frame_id
 
 # 云台关节（可选）
 enable_gimbal: true               # 是否发布云台关节状态 /joint_states

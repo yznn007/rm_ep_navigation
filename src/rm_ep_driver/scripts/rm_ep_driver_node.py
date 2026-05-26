@@ -105,7 +105,7 @@ class RmEpDriver:
         self.cmd_vel_timeout = rospy.get_param("~cmd_vel_timeout", 0.5)
 
         self._enable_camera = rospy.get_param("~enable_camera", False)
-        self._camera_frame_id = rospy.get_param("~camera_frame_id", "camera_link")
+        self._camera_frame_id = rospy.get_param("~camera_frame_id", "camera_link_optical_frame")
         self._enable_gimbal = rospy.get_param("~enable_gimbal", False)
         self._gimbal_rate = rospy.get_param("~gimbal_rate", 50)
         self._init_attitude_calibration = rospy.get_param("~init_attitude_calibration", False)
