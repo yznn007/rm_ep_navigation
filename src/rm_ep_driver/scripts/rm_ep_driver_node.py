@@ -8,9 +8,10 @@ import time
 import rospy
 from geometry_msgs.msg import Quaternion, Twist, Vector3
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Image, Imu, JointState
 from std_msgs.msg import Header
 from tf2_ros import TransformBroadcaster
+from cv_bridge import CvBridge, CvBridgeError
 
 try:
     from robomaster import robot as rm_robot
@@ -18,6 +19,31 @@ try:
 except ImportError:
     rospy.logwarn("robomaster SDK 未安装，请执行: pip3 install robomaster")
     SDK_AVAILABLE = False
+
+
+def _quat_from_axis_angle(axis, angle_deg):
+    """轴角转四元数，返回 (x, y, z, w)"""
+    half = math.radians(angle_deg) / 2.0
+    s = math.sin(half)
+    c = math.cos(half)
+    return (axis[0] * s, axis[1] * s, axis[2] * s, c)
+
+
+def _quat_multiply(q1, q2):
+    """四元数乘法 q1 * q2"""
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return (
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    )
+
+
+def _quat_inverse(q):
+    """四元数逆（单位四元数 = 共轭）"""
+    return (-q[0], -q[1], -q[2], q[3])
 
 
 class RmEpDriver:
@@ -34,6 +60,8 @@ class RmEpDriver:
         self._velocity = None
         self._imu_data = None
         self._last_cmd_time = rospy.Time.now()
+        self._last_attitude_q = None
+        self._init_orientation = None
 
         self.odom_pub = rospy.Publisher("/odom", Odometry, queue_size=10)
         self.imu_pub = rospy.Publisher("/imu", Imu, queue_size=10)
@@ -41,6 +69,18 @@ class RmEpDriver:
         if self.enable_cmd_vel:
             self.cmd_vel_sub = rospy.Subscriber(
                 "/cmd_vel", Twist, self._cmd_vel_callback, queue_size=1
+            )
+
+        self._cv_bridge = CvBridge()
+        self._img_pub = None
+        self._joint_pub = None
+        if self._enable_camera:
+            self._img_pub = rospy.Publisher(
+                "/camera/image_raw", Image, queue_size=3
+            )
+        if self._enable_gimbal:
+            self._joint_pub = rospy.Publisher(
+                "/joint_states", JointState, queue_size=3
             )
 
         self._connect_ep()
@@ -63,6 +103,13 @@ class RmEpDriver:
         self.base_frame_id = rospy.get_param("~base_frame_id", "base_link")
         self.imu_frame_id = rospy.get_param("~imu_frame_id", "imu_link")
         self.cmd_vel_timeout = rospy.get_param("~cmd_vel_timeout", 0.5)
+
+        self._enable_camera = rospy.get_param("~enable_camera", False)
+        self._camera_frame_id = rospy.get_param("~camera_frame_id", "camera_link")
+        self._enable_gimbal = rospy.get_param("~enable_gimbal", False)
+        self._gimbal_rate = rospy.get_param("~gimbal_rate", 50)
+        self._init_attitude_calibration = rospy.get_param("~init_attitude_calibration", False)
+        self._imu_gravity_constant = rospy.get_param("~imu_gravity_constant", 0.0)
 
     def _connect_ep(self):
         if not SDK_AVAILABLE:
@@ -121,6 +168,25 @@ class RmEpDriver:
             self._publish_timer_callback
         )
 
+        if self._enable_camera:
+            try:
+                self.ep_robot.camera.start_video_stream(display=False)
+                self._cam_thread = threading.Thread(target=self._cam_loop)
+                self._cam_thread.daemon = True
+                self._cam_thread.start()
+                rospy.loginfo("相机流已启动, 发布到 /camera/image_raw")
+            except Exception as e:
+                rospy.logwarn("无法启动相机流: %s", e)
+
+        if self._enable_gimbal:
+            try:
+                self.ep_robot.gimbal.sub_angle(
+                    freq=self._gimbal_rate, callback=self._gimbal_angle_callback
+                )
+                rospy.loginfo("云台角度订阅已启动 (freq=%d)", self._gimbal_rate)
+            except Exception as e:
+                rospy.logwarn("无法订阅云台角度: %s", e)
+
     def _get_value(self, info, attr, default=0.0):
         """安全获取属性值，兼容 (x, y, z) 元组"""
         try:
@@ -167,6 +233,18 @@ class RmEpDriver:
                 except AttributeError:
                     pass
 
+            if self._attitude is not None:
+                yaw_d, pitch_d, roll_d = self._attitude
+                qz = _quat_from_axis_angle((0, 0, 1), yaw_d)
+                qy = _quat_from_axis_angle((0, 1, 0), pitch_d)
+                qx = _quat_from_axis_angle((1, 0, 0), roll_d)
+                self._last_attitude_q = _quat_multiply(_quat_multiply(qz, qy), qx)
+
+                if self._init_attitude_calibration and self._init_orientation is None:
+                    self._init_orientation = self._last_attitude_q
+                    rospy.loginfo("初始姿态已记录 (yaw=%.1f, pitch=%.1f, roll=%.1f)",
+                                  yaw_d, pitch_d, roll_d)
+
     def _velocity_callback(self, velocity_info):
         with self._lock:
             try:
@@ -188,18 +266,47 @@ class RmEpDriver:
     def _imu_callback(self, imu_info):
         with self._lock:
             try:
-                self._imu_data = (
-                    float(imu_info[0]), float(imu_info[1]), float(imu_info[2]),
-                    float(imu_info[3]), float(imu_info[4]), float(imu_info[5]),
-                )
+                acc_x = float(imu_info[0])
+                acc_y = float(imu_info[1])
+                acc_z = float(imu_info[2])
+                gyro_x = float(imu_info[3])
+                gyro_y = float(imu_info[4])
+                gyro_z = float(imu_info[5])
             except (TypeError, IndexError):
                 try:
-                    self._imu_data = (
-                        float(imu_info.acc_x), float(imu_info.acc_y), float(imu_info.acc_z),
-                        float(imu_info.gyro_x), float(imu_info.gyro_y), float(imu_info.gyro_z),
-                    )
+                    acc_x = float(imu_info.acc_x)
+                    acc_y = float(imu_info.acc_y)
+                    acc_z = float(imu_info.acc_z)
+                    gyro_x = float(imu_info.gyro_x)
+                    gyro_y = float(imu_info.gyro_y)
+                    gyro_z = float(imu_info.gyro_z)
                 except AttributeError:
                     pass
+                else:
+                    g = self._imu_gravity_constant
+                    if g > 0:
+                        self._imu_data = (
+                            acc_x * g, acc_y * g, acc_z * g,
+                            gyro_x, gyro_y, gyro_z,
+                        )
+                    else:
+                        self._imu_data = (
+                            acc_x, acc_y, acc_z,
+                            gyro_x, gyro_y, gyro_z,
+                        )
+                    return
+            else:
+                g = self._imu_gravity_constant
+                if g > 0:
+                    self._imu_data = (
+                        acc_x * g, acc_y * g, acc_z * g,
+                        gyro_x, gyro_y, gyro_z,
+                    )
+                else:
+                    self._imu_data = (
+                        acc_x, acc_y, acc_z,
+                        gyro_x, gyro_y, gyro_z,
+                    )
 
     def _publish_timer_callback(self, event):
         now = rospy.Time.now()
@@ -246,7 +353,11 @@ class RmEpDriver:
         odom.pose.pose.position.x = px
         odom.pose.pose.position.y = py
         odom.pose.pose.position.z = 0.0
-        odom.pose.pose.orientation = self._quaternion_from_euler(0.0, 0.0, yaw)
+        if self._init_attitude_calibration and self._last_attitude_q is not None and self._init_orientation is not None:
+            q = _quat_multiply(self._last_attitude_q, _quat_inverse(self._init_orientation))
+            odom.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+        else:
+            odom.pose.pose.orientation = self._quaternion_from_euler(0.0, 0.0, yaw)
 
         odom.pose.covariance = [
             0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -287,11 +398,15 @@ class RmEpDriver:
         imu_msg.header.frame_id = self.imu_frame_id
 
         if att is not None:
-            yaw_deg, pitch_deg, roll_deg = att
-            yaw = math.radians(yaw_deg)
-            pitch = math.radians(pitch_deg)
-            roll = math.radians(roll_deg)
-            imu_msg.orientation = self._quaternion_from_euler(roll, pitch, yaw)
+            if self._init_attitude_calibration and self._last_attitude_q is not None and self._init_orientation is not None:
+                q = _quat_multiply(self._last_attitude_q, _quat_inverse(self._init_orientation))
+                imu_msg.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+            else:
+                yaw_deg, pitch_deg, roll_deg = att
+                yaw = math.radians(yaw_deg)
+                pitch = math.radians(pitch_deg)
+                roll = math.radians(roll_deg)
+                imu_msg.orientation = self._quaternion_from_euler(roll, pitch, yaw)
             imu_msg.orientation_covariance = [0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]
 
         if imu is not None:
@@ -314,6 +429,33 @@ class RmEpDriver:
             imu_msg.linear_acceleration.z = 0.0
 
         self.imu_pub.publish(imu_msg)
+
+    def _cam_loop(self):
+        while not rospy.is_shutdown():
+            try:
+                img = self.ep_robot.camera.read_cv2_image(timeout=0.1, strategy='newest')
+                if img is None:
+                    continue
+                msg = self._cv_bridge.cv2_to_imgmsg(img, encoding="bgr8")
+                msg.header.stamp = rospy.Time.now()
+                msg.header.frame_id = self._camera_frame_id
+                self._img_pub.publish(msg)
+            except CvBridgeError as e:
+                rospy.logwarn_throttle(10.0, "cv_bridge 转换失败: %s", e)
+            except Exception:
+                pass
+
+    def _gimbal_angle_callback(self, angle_info):
+        try:
+            pitch, yaw, _, _ = angle_info
+        except (TypeError, ValueError):
+            return
+
+        msg = JointState()
+        msg.header.stamp = rospy.Time.now()
+        msg.name = ["gimbal_yaw_joint", "gimbal_pitch_joint"]
+        msg.position = [-yaw / 180.0 * math.pi, -pitch / 180.0 * math.pi]
+        self._joint_pub.publish(msg)
 
     def _cmd_vel_callback(self, msg):
         if not hasattr(self, "ep_robot") or self.ep_robot is None:
@@ -361,6 +503,8 @@ class RmEpDriver:
         rospy.loginfo("rm_ep_driver 正在关闭...")
         if hasattr(self, "ep_robot") and self.ep_robot is not None:
             try:
+                if self._enable_camera:
+                    self.ep_robot.camera.stop_video_stream()
                 self.ep_robot.chassis.drive_speed(x=0, y=0, z=0, timeout=0)
                 self.ep_robot.close()
             except Exception:
