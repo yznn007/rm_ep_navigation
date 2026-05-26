@@ -14,6 +14,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-install(DIRECTORY launch urdf
+install(DIRECTORY launch urdf meshes
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

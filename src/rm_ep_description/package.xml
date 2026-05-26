@@ -2,7 +2,7 @@
 <package format="2">
   <name>rm_ep_description</name>
   <version>0.1.0</version>
-  <description>RoboMaster EP 机器人 URDF 模型</description>
+  <description>RoboMaster S1/EP 机器人 URDF 模型（含网格）</description>
   <maintainer email="user@example.com">user</maintainer>
   <license>BSD</license>
 

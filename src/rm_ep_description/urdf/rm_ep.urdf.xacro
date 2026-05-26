@@ -1,105 +1,113 @@
 <?xml version="1.0"?>
-<robot name="robomaster_ep" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot name="robomaster_ep"
+  xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="PI" value="3.1415926535897931"/>
 
   <!-- ========== 材质定义 ========== -->
-  <material name="chassis_grey">
-    <color rgba="0.3 0.3 0.35 1.0"/>
-  </material>
-  <material name="wheel_black">
-    <color rgba="0.1 0.1 0.1 1.0"/>
-  </material>
-  <material name="laser_blue">
-    <color rgba="0.1 0.3 0.8 1.0"/>
-  </material>
-  <material name="white">
-    <color rgba="0.95 0.95 0.95 1.0"/>
+  <material name="dark_grey">
+    <color rgba="0.2 0.2 0.2 1.0"/>
   </material>
 
-  <!-- ========== 宏: 麦克纳姆轮 ========== -->
-  <xacro:macro name="mecanum_wheel" params="name pos_x pos_y pos_z">
-    <link name="${name}">
-      <visual>
-        <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
-        <geometry>
-          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
-        </geometry>
-        <material name="wheel_black"/>
-      </visual>
-    </link>
 
-    <joint name="${name}_joint" type="continuous">
-      <parent link="base_link"/>
-      <child link="${name}"/>
-      <origin xyz="${pos_x} ${pos_y} ${pos_z}" rpy="0 0 0"/>
-      <axis xyz="0 1 0"/>
-    </joint>
-  </xacro:macro>
+  <!-- ========== base_link → base ========== -->
+  <link name="base_link"/>
 
-  <!-- ========== 底盘参数 ========== -->
-  <xacro:property name="chassis_length" value="0.32"/>
-  <xacro:property name="chassis_width" value="0.24"/>
-  <xacro:property name="chassis_height" value="0.10"/>
-  <xacro:property name="chassis_clearance" value="0.045"/>
+  <joint name="base_link_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="base"/>
+  </joint>
 
-  <xacro:property name="wheel_radius" value="0.0485"/>
-  <xacro:property name="wheel_width" value="0.04"/>
-  <xacro:property name="wheel_base" value="0.26"/>
-  <xacro:property name="wheel_track" value="0.20"/>
-
-  <!-- 激光雷达安装位置 (底盘顶部前偏) -->
-  <xacro:property name="laser_x" value="0.05"/>
-  <xacro:property name="laser_z" value="0.10"/>
-
-  <!-- ========== base_link ========== -->
-  <link name="base_link">
+  <!-- S1 底盘 STL 模型 -->
+  <link name="base">
     <visual>
+      <origin xyz="0 0 0" rpy="0 0 ${PI/2.0}"/>
       <geometry>
-        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+        <mesh filename="package://rm_ep_description/meshes/visual/base.stl"/>
       </geometry>
-      <material name="chassis_grey"/>
+      <material name="dark_grey"/>
     </visual>
-    <visual>
-      <!-- 顶部白色装饰板 -->
-      <origin xyz="0 0 ${chassis_height/2 + 0.002}" rpy="0 0 0"/>
-      <geometry>
-        <box size="${chassis_length - 0.04} ${chassis_width - 0.04} 0.004"/>
-      </geometry>
-      <material name="white"/>
-    </visual>
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
   </link>
 
-  <!-- ========== imu_link (底盘中心) ========== -->
+  <!-- ========== 云台 yaw 关节 ========== -->
+  <joint name="gimbal_yaw_joint" type="revolute">
+    <origin xyz="0 0 0.09" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <parent link="base"/>
+    <child link="gimbal_base"/>
+    <limit effort="1000.0" lower="${-1.5*PI}" upper="${1.5*PI}" velocity="${2.0*PI}"/>
+  </joint>
+
+  <link name="gimbal_base">
+    <visual>
+      <origin xyz="0 0 -0.09" rpy="0 0 ${PI/2.0}"/>
+      <geometry>
+        <mesh filename="package://rm_ep_description/meshes/visual/gimbal_base.stl"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+  </link>
+
+  <!-- ========== 云台 pitch 关节 ========== -->
+  <joint name="gimbal_pitch_joint" type="revolute">
+    <origin xyz="0 0 0.075" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <parent link="gimbal_base"/>
+    <child link="gimbal_head"/>
+    <limit effort="1000.0" lower="${-PI/4.0}" upper="${PI/4.0}" velocity="${2.0*PI}"/>
+  </joint>
+
+  <link name="gimbal_head">
+    <visual>
+      <origin xyz="0 0 -0.165" rpy="0 0 ${PI/2.0}"/>
+      <geometry>
+        <mesh filename="package://rm_ep_description/meshes/visual/gimbal_head.stl"/>
+      </geometry>
+      <material name="dark_grey"/>
+    </visual>
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+  </link>
+
+  <!-- ========== IMU ========== -->
   <link name="imu_link"/>
 
-  <joint name="imu_joint" type="fixed">
-    <parent link="base_link"/>
+  <joint name="base_to_imu" type="fixed">
+    <origin xyz="-0.1 0 0.07" rpy="0 0 0"/>
+    <parent link="base"/>
     <child link="imu_link"/>
-    <origin xyz="0 0 ${chassis_height/2}" rpy="0 0 0"/>
   </joint>
 
-  <!-- ========== laser_link (RPLIDAR A2 安装位置) ========== -->
-  <link name="laser_link">
-    <visual>
-      <origin xyz="0 0 0.02" rpy="0 0 0"/>
-      <geometry>
-        <cylinder radius="0.048" length="0.04"/>
-      </geometry>
-      <material name="laser_blue"/>
-    </visual>
-  </link>
+  <!-- ========== 相机 ========== -->
+  <link name="camera_link"/>
 
-  <joint name="laser_joint" type="fixed">
-    <parent link="base_link"/>
-    <child link="laser_link"/>
-    <origin xyz="${laser_x} 0 ${chassis_height/2 + laser_z}" rpy="0 0 0"/>
+  <joint name="head_to_cam" type="fixed">
+    <origin xyz="0.0673 0 0.0243" rpy="0 0 0"/>
+    <parent link="gimbal_head"/>
+    <child link="camera_link"/>
   </joint>
 
-  <!-- ========== 四个麦克纳姆轮 ========== -->
-  <xacro:property name="pos_z" value="${-chassis_height/2 + wheel_radius + chassis_clearance}"/>
+  <link name="camera_link_optical_frame"/>
 
-  <xacro:mecanum_wheel name="wheel_fl" pos_x="${wheel_base/2}" pos_y="${wheel_track/2}" pos_z="${pos_z}"/>
-  <xacro:mecanum_wheel name="wheel_fr" pos_x="${wheel_base/2}" pos_y="${-wheel_track/2}" pos_z="${pos_z}"/>
-  <xacro:mecanum_wheel name="wheel_rl" pos_x="${-wheel_base/2}" pos_y="${wheel_track/2}" pos_z="${pos_z}"/>
-  <xacro:mecanum_wheel name="wheel_rr" pos_x="${-wheel_base/2}" pos_y="${-wheel_track/2}" pos_z="${pos_z}"/>
+  <joint name="cam_to_optical" type="fixed">
+    <origin xyz="0 0 0" rpy="${-PI/2.0} 0 ${-PI/2.0}"/>
+    <parent link="camera_link"/>
+    <child link="camera_link_optical_frame"/>
+  </joint>
+
 
 </robot>
