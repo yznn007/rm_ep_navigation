@@ -94,7 +94,7 @@ class RmEpDriver:
 
     def _load_params(self):
         self.ep_sn = rospy.get_param("~ep_sn", "")
-        self.ep_conn_type = rospy.get_param("~ep_conn_type", "sta")
+        self.ep_conn_type = rospy.get_param("~ep_conn_type", "ap")
         self.ep_ip = rospy.get_param("~ep_ip", "")
         self.enable_cmd_vel = rospy.get_param("~enable_cmd_vel", True)
         self.odom_rate = rospy.get_param("~odom_rate", 20)
@@ -104,12 +104,12 @@ class RmEpDriver:
         self.imu_frame_id = rospy.get_param("~imu_frame_id", "imu_link")
         self.cmd_vel_timeout = rospy.get_param("~cmd_vel_timeout", 0.5)
 
-        self._enable_camera = rospy.get_param("~enable_camera", False)
+        self._enable_camera = rospy.get_param("~enable_camera", True)
         self._camera_frame_id = rospy.get_param("~camera_frame_id", "camera_link_optical_frame")
-        self._enable_gimbal = rospy.get_param("~enable_gimbal", False)
+        self._enable_gimbal = rospy.get_param("~enable_gimbal", True)
         self._gimbal_rate = rospy.get_param("~gimbal_rate", 50)
-        self._init_attitude_calibration = rospy.get_param("~init_attitude_calibration", False)
-        self._imu_gravity_constant = rospy.get_param("~imu_gravity_constant", 0.0)
+        self._init_attitude_calibration = rospy.get_param("~init_attitude_calibration", True)
+        self._imu_gravity_constant = rospy.get_param("~imu_gravity_constant", 9.86)
 
     def _connect_ep(self):
         if not SDK_AVAILABLE:

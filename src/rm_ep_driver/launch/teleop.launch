@@ -1,14 +1,16 @@
 <launch>
   <!-- 手柄遥控 RoboMaster EP -->
 
-  <arg name="ep_sn" default="" doc="RoboMaster EP 序列号"/>
-  <arg name="ep_conn_type" default="ap" doc="连接模式: sta(路由器)/ap(直连)/rndis(USB)"/>
+  <arg name="ep_sn" default="3JKDH3B001891M" doc="RoboMaster EP 序列号"/>
+  <arg name="ep_conn_type" default="ap" doc="连接模式: ap(WiFi直连) / sta(路由器) / rndis(USB)"/>
+  <arg name="ep_ip" default="" doc="EP IP地址"/>
   <arg name="rviz" default="true" doc="是否启动 RViz"/>
 
   <!-- 底盘驱动 -->
   <include file="$(find rm_ep_driver)/launch/rm_ep_bringup.launch">
     <arg name="ep_sn" value="$(arg ep_sn)"/>
     <arg name="ep_conn_type" value="$(arg ep_conn_type)"/>
+    <arg name="ep_ip" value="$(arg ep_ip)"/>
     <arg name="enable_cmd_vel" value="true"/>
   </include>
 
