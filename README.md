@@ -11,7 +11,6 @@ catkin_ws/
     ├── rm_ep_driver/             RoboMaster EP ROS 驱动节点
     ├── rm_ep_description/        EP 机器人 URDF 模型
     ├── rm_ep_navigation/         建图与导航配置包
-    └── catkin_simple/            catkin cmake 辅助工具
 ```
 
 ## 功能包说明

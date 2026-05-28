@@ -7,7 +7,6 @@ install/
 # External symlink packages
 src/robomaster_description
 src/robomaster_driver
-src/catkin_simple
 
 # Node
 package-lock.json
