@@ -2,6 +2,15 @@
 build/
 devel/
 install/
+.catkin_tools/
+
+# External symlink packages
+src/robomaster_description
+src/robomaster_driver
+src/catkin_simple
+
+# Node
+package-lock.json
 
 # Python
 __pycache__/
