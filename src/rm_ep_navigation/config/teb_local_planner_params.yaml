@@ -28,7 +28,7 @@ TebLocalPlannerROS:
   # ========================
   # 轨迹配置
   # ========================
-  dt_ref: 0.3                  # 局部路径规划的期望时间分辨率 (s)
+  dt_ref: 0.1                  # 局部路径规划的期望时间分辨率 (s)
   dt_hysteresis: 0.05          # 允许的滞后时间差 (s)
   min_samples: 3               # 最小轨迹采样数
   global_plan_overwrite_orientation: true
@@ -44,7 +44,7 @@ TebLocalPlannerROS:
   include_costmap_obstacles: true
   costmap_obstacles_behind_robot_dist: 1.5
   obstacle_poses_affected: 30
-  inflation_dist: 0.5
+  inflation_dist: 0.3
 
   # ========================
   # 足迹模型 (多边形)

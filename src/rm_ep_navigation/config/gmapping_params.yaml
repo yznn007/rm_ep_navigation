@@ -21,9 +21,9 @@ str: 0.1                      # 旋转时平移误差 (m/rad)
 stt: 0.2                      # 旋转时旋转误差 (rad/rad)
 
 # 更新条件
-linearUpdate: 0.5             # 平移超过此距离才处理扫描 (m)
-angularUpdate: 0.2            # 旋转超过此角度才处理扫描 (rad)
-temporalUpdate: -1.0          # 时间更新 (负值 = 禁用)
+linearUpdate: 0.1             # 平移超过此距离才处理扫描 (m)
+angularUpdate: 0.05           # 旋转超过此角度才处理扫描 (rad)
+temporalUpdate: 0.5           # 时间更新 (秒，即使静止也强制更新)
 
 # 粒子滤波器
 resampleThreshold: 0.5        # 重采样阈值 (0-1)

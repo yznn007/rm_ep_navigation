@@ -8,7 +8,7 @@ kld_z: 0.99
 
 # 更新条件
 update_min_d: 0.10             # 最小平移更新距离 (m)
-update_min_a: 0.20             # 最小旋转更新角度 (rad)
+update_min_a: 0.10             # 最小旋转更新角度 (rad)
 resample_interval: 2           # 重采样间隔
 transform_tolerance: 0.5       # TF 变换容忍时间 (秒)
 recovery_alpha_slow: 0.001     # 慢恢复权重
@@ -26,13 +26,13 @@ initial_cov_aa: 0.0685
 laser_model_type: likelihood_field
 laser_likelihood_max_dist: 2.0
 laser_max_beams: 60
-laser_z_hit: 0.5
-laser_z_rand: 0.5
-laser_z_short: 0.05
+laser_z_hit: 0.8
+laser_z_rand: 0.05
+laser_z_short: 0.10
 laser_z_max: 0.05
 
-# 里程计模型 (全向轮使用 diff 模型近似)
-odom_model_type: diff-corrected
+# 里程计模型 (全向轮使用 omni 模型)
+odom_model_type: omni-corrected
 odom_alpha1: 0.2               # 旋转时旋转噪声
 odom_alpha2: 0.2               # 平移时旋转噪声
 odom_alpha3: 0.2               # 平移时平移噪声
