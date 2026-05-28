@@ -41,8 +41,6 @@ rosrun rm_ep_navigation save_map.sh [地图名称]
 | `rm_ep_description` | `src/rm_ep_description/` | URDF 模型，定义 TF 树 |
 | `rplidar_ros` | `src/rplidar_ros/` | RPLIDAR A2 激光雷达驱动 |
 | `catkin_simple` | `src/catkin_simple/` | catkin cmake 辅助工具 |
-| `robomaster_description` | `src/robomaster_description` | 符号链接 → `~/robomaster_ros/robomaster_description` |
-| `robomaster_driver` | `src/robomaster_driver` | 符号链接 → `~/robomaster_ros/robomaster_driver` |
 
 ## 入口点
 
@@ -140,9 +138,7 @@ src/
 │   ├── launch/description.launch, display.launch
 │   └── meshes/visual/ (base.stl, gimbal_*.stl)
 ├── rplidar_ros/ (C++ 驱动 + SDK)
-├── catkin_simple/
-├── robomaster_description → ~/robomaster_ros/robomaster_description (符号链接)
-└── robomaster_driver → ~/robomaster_ros/robomaster_driver (符号链接)
+└── catkin_simple/
 ```
 
 ## 重要约定
