@@ -10,7 +10,8 @@ catkin_ws/
     ├── rplidar_ros/              思岚 RPLIDAR A2 激光雷达驱动
     ├── rm_ep_driver/             RoboMaster EP ROS 驱动节点
     ├── rm_ep_description/        EP 机器人 URDF 模型
-    └── rm_ep_navigation/         建图与导航配置包
+    ├── rm_ep_navigation/         建图与导航配置包
+    └── catkin_simple/            catkin cmake 辅助工具
 ```
 
 ## 功能包说明
@@ -30,8 +31,9 @@ catkin_ws/
 URDF/XACRO 模型，定义 TF 树：
 
 ```
-map ──(gmapping/amcl)──► odom ──(EKF)──► base_link ──┬── laser_link
-                                                      └── imu_link
+map ──(gmapping/amcl)──► odom ──(EKF)──► base_link ──┬── base ──┬── gimbal → camera
+                                                      │          └── imu_link
+                                                      └── laser_link
 ```
 
 ### 3. rm_ep_navigation — 建图与导航
@@ -112,11 +114,11 @@ source devel/setup.bash
 ```bash
 source ~/catkin_ws/devel/setup.bash
 
-# 启动底盘驱动（使用配置文件中的 SN）
+# 直接启动底盘驱动（使用配置文件中的 SN，默认 3JKDH3B001891M）
 roslaunch rm_ep_driver rm_ep_bringup.launch
 
-# 或指定 SN
-roslaunch rm_ep_driver rm_ep_bringup.launch ep_sn:=3JKDH3B001891M
+# 或手柄遥控
+roslaunch rm_ep_driver teleop.launch
 ```
 
 启动后可通过 `/cmd_vel` 话题控制底盘运动，订阅 `/odom` 和 `/imu` 获取传感器数据。
@@ -126,8 +128,8 @@ roslaunch rm_ep_driver rm_ep_bringup.launch ep_sn:=3JKDH3B001891M
 ```bash
 source ~/catkin_ws/devel/setup.bash
 
-# 启动建图（替换 YOUR_EP_SN 为 EP 序列号）
-roslaunch rm_ep_navigation mapping.launch ep_sn:=YOUR_EP_SN
+# 直接启动建图（使用默认 SN 和 AP 直连模式）
+roslaunch rm_ep_navigation mapping.launch
 
 # 通过遥控或键盘控制 EP 遍历环境
 # 地图满意后，另开终端保存:
@@ -138,8 +140,9 @@ rosrun rm_ep_navigation save_map.sh my_map
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `ep_sn` | (空) | EP 序列号 |
-| `ep_conn_type` | `sta` | 连接模式：`sta`(路由器) / `ap`(直连) |
+| `ep_sn` | `3JKDH3B001891M` | EP 序列号 |
+| `ep_conn_type` | `ap` | 连接模式：`ap`(WiFi直连) / `sta`(路由器) / `rndis`(USB) |
+| `ep_ip` | `""` | EP IP 地址 |
 | `serial_port` | `/dev/ttyUSB0` | 雷达串口号 |
 | `rviz` | `true` | 是否启动 RVIZ |
 
@@ -150,7 +153,6 @@ source ~/catkin_ws/devel/setup.bash
 
 # 加载地图并启动导航
 roslaunch rm_ep_navigation navigation.launch \
-  ep_sn:=YOUR_EP_SN \
   map_file:=/home/你的用户名/catkin_ws/src/rm_ep_navigation/maps/my_map.yaml
 
 # 在 RVIZ 中使用 "2D Nav Goal" 工具点击目标点即可
@@ -160,8 +162,10 @@ roslaunch rm_ep_navigation navigation.launch \
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `ep_sn` | (空) | EP 序列号 |
-| `map_file` | `maps/my_map.yaml` | 地图文件完整路径 |
+| `ep_sn` | `3JKDH3B001891M` | EP 序列号 |
+| `ep_conn_type` | `ap` | 连接模式：`ap`(WiFi直连) / `sta`(路由器) / `rndis`(USB) |
+| `ep_ip` | `""` | EP IP 地址 |
+| `map_file` | `.../maps/map_test.yaml` | 地图文件完整路径 |
 | `serial_port` | `/dev/ttyUSB0` | 雷达串口号 |
 | `rviz` | `true` | 是否启动 RVIZ |
 
@@ -215,9 +219,15 @@ inflation_radius: 0.30    # 膨胀半径 (m)，在 costmap_common_params 中
 
 ## 硬件连接
 
-1. EP 连接路由器（STA 模式），确保电脑与 EP 在同一局域网
-2. RPLIDAR A2 通过 USB 连接电脑，默认串口 `/dev/ttyUSB0`
-3. 如需指定其他串口，在 launch 中添加 `serial_port:=/dev/ttyUSB1`
+EP 支持三种连接方式：
+
+| 模式 | 参数 | 说明 |
+|------|------|------|
+| WiFi 直连 | `ep_conn_type:=ap` | 电脑直连 EP 自带 WiFi 热点 |
+| 路由器 | `ep_conn_type:=sta` | EP + 电脑通过路由器通信 |
+| USB | `ep_conn_type:=rndis` | USB 线直连，无需 WiFi |
+
+RPLIDAR A2 通过 USB 连接电脑，默认串口 `/dev/ttyUSB0`。
 
 ## 常见问题
 
@@ -229,10 +239,10 @@ pip3 install robomaster
 
 **Q: EP 连接不上**
 
-确认 EP 已开机且连接到路由器，检查 SN 号是否正确，或尝试指定 IP：
+确认 EP 已开机，WiFi 直连模式需要电脑连接 EP 的热点；路由器模式需确认在同一局域网。也可尝试指定 IP：
 
 ```bash
-roslaunch rm_ep_navigation mapping.launch ep_sn:="" ep_ip:=192.168.x.x
+roslaunch rm_ep_navigation mapping.launch ep_ip:=192.168.x.x
 ```
 
 **Q: 雷达不工作**

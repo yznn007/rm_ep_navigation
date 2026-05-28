@@ -116,7 +116,7 @@ rosrun rm_ep_navigation save_map.sh [地图名称]
 map ──(gmapping/amcl)──► odom ──(EKF)──► base_link ──┬── base (底盘STL)
                                                       │    ├── gimbal_yaw_joint → gimbal_base → gimbal_pitch_joint → gimbal_head → camera_link → camera_link_optical_frame
                                                       │    └── imu_link
-                                                      └── laser_link (rplidarNode 发布)
+                                                      └── laser_link (URDF fixed 关节，robot_state_publisher 发布)
 ```
 
 ## 源目录结构
