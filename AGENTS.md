@@ -159,3 +159,46 @@ src/
 - **串口权限**: `sudo usermod -a -G dialout $USER` 后重新登录
 - **EP 连接失败**: 检查 SN 号，或尝试指定 IP `ep_ip:=192.168.x.x`
 - **里程计漂移**: EP 麦轮在光滑地面易打滑，建图时保持低速平稳移动
+
+## Git 提交规范
+
+使用 Conventional Commits 格式：
+
+```
+<type>[(scope)]: <subject>
+
+[body]
+```
+
+### Type 类型
+
+| Type | 说明 |
+|------|------|
+| `feat` | 新功能 |
+| `fix` | 修复 bug 或参数错误 |
+| `perf` | 性能优化、参数调优 |
+| `docs` | 文档变更 |
+| `refactor` | 代码重构（不改变行为） |
+| `style` | 代码格式（不影响运行） |
+| `test` | 测试相关 |
+| `chore` | 杂项（构建、配置、依赖） |
+
+### 规则
+
+- `subject` 使用中文，动词开头，不超过 50 字符
+- `scope` 可选，标识影响范围（如 `launch`、`amcl`、`driver`）
+- `body` 分行列出具体变更，每行 72 字符内
+- `subject` 结尾不加句号
+- 破坏性变更在 body 加入 `BREAKING CHANGE:` 说明
+
+### 示例
+
+```
+fix(launch): 统一 EP 连接参数默认值，修正雷达波特率
+
+将 4 个 launch 文件的 ep_sn 默认值统一为 3JKDH3B001891M
+统一 ep_conn_type 默认为 ap，新增 rndis(USB) 连接模式注释
+teleop.launch 补全 ep_ip 参数传递
+修正 RPLIDAR A2 串口波特率 115200 → 256000
+修复 rm_ep_driver_node.py 代码默认值与 YAML 对齐
+```
