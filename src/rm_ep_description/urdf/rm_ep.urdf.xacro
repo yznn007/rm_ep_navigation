@@ -22,7 +22,7 @@
   <!-- EP 底盘 STL 模型 -->
   <link name="base">
     <visual>
-      <origin xyz="0 0 0" rpy="0 0 ${PI/2.0}"/>
+      <origin xyz="0 0 0" rpy="0 0 ${-PI/2.0}"/>
       <geometry>
         <mesh filename="package://rm_ep_description/meshes/visual/base.stl"/>
       </geometry>
@@ -46,7 +46,7 @@
 
   <link name="gimbal_base">
     <visual>
-      <origin xyz="0 0 -0.09" rpy="0 0 ${PI/2.0}"/>
+      <origin xyz="0 0 -0.09" rpy="0 0 ${-PI/2.0}"/>
       <geometry>
         <mesh filename="package://rm_ep_description/meshes/visual/gimbal_base.stl"/>
       </geometry>
@@ -70,7 +70,7 @@
 
   <link name="gimbal_head">
     <visual>
-      <origin xyz="0 0 -0.165" rpy="0 0 ${PI/2.0}"/>
+      <origin xyz="0 0 -0.165" rpy="0 0 ${-PI/2.0}"/>
       <geometry>
         <mesh filename="package://rm_ep_description/meshes/visual/gimbal_head.stl"/>
       </geometry>

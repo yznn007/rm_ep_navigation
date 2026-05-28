@@ -2,7 +2,7 @@
 
 # EP 连接参数
 ep_sn: "3JKDH3B001891M"     # EP 序列号 (SN)，路由器模式下用于发现设备
-ep_conn_type: "ap"        # 连接类型: "ap"(WiFi直连) / "sta"(路由器) / "rndis"(USB)
+ep_conn_type: "rndis"        # 连接类型: "ap"(WiFi直连) / "sta"(路由器) / "rndis"(USB)
 ep_ip: ""                  # EP IP地址 (留空则通过SN自动发现)
 
 # 发布频率 (Hz)

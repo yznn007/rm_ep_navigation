@@ -1,6 +1,6 @@
 <launch>
   <arg name="ep_sn" default="3JKDH3B001891M" doc="RoboMaster EP 序列号 (SN)"/>
-  <arg name="ep_conn_type" default="ap" doc="连接模式: ap(WiFi直连) / sta(路由器) / rndis(USB)"/>
+  <arg name="ep_conn_type" default="rndis" doc="连接模式: ap(WiFi直连) / sta(路由器) / rndis(USB)"/>
   <arg name="ep_ip" default="" doc="EP IP地址"/>
   <arg name="enable_cmd_vel" default="true" doc="是否启用速度控制"/>
 

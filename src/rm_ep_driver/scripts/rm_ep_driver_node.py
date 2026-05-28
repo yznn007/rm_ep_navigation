@@ -235,7 +235,7 @@ class RmEpDriver:
 
             if self._attitude is not None:
                 yaw_d, pitch_d, roll_d = self._attitude
-                qz = _quat_from_axis_angle((0, 0, 1), yaw_d)
+                qz = _quat_from_axis_angle((0, 0, 1), -yaw_d)
                 qy = _quat_from_axis_angle((0, 1, 0), pitch_d)
                 qx = _quat_from_axis_angle((1, 0, 0), roll_d)
                 self._last_attitude_q = _quat_multiply(_quat_multiply(qz, qy), qx)
@@ -413,7 +413,7 @@ class RmEpDriver:
             acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z = imu
             imu_msg.angular_velocity.x = math.radians(gyro_x)
             imu_msg.angular_velocity.y = math.radians(gyro_y)
-            imu_msg.angular_velocity.z = math.radians(gyro_z)
+            imu_msg.angular_velocity.z = -math.radians(gyro_z)
             imu_msg.angular_velocity_covariance = [0.02, 0, 0, 0, 0.02, 0, 0, 0, 0.02]
 
             imu_msg.linear_acceleration.x = acc_x

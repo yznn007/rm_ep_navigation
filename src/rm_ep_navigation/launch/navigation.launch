@@ -5,7 +5,7 @@
 
   <!-- 参数 -->
   <arg name="ep_sn" default="3JKDH3B001891M" doc="RoboMaster EP 序列号"/>
-  <arg name="ep_conn_type" default="ap" doc="连接模式: ap(WiFi直连) / sta(路由器) / rndis(USB)"/>
+  <arg name="ep_conn_type" default="rndis" doc="连接模式: ap(WiFi直连) / sta(路由器) / rndis(USB)"/>
   <arg name="ep_ip" default="" doc="EP IP 地址"/>
   <arg name="lidar_frame" default="laser_link" doc="激光雷达 TF 帧名"/>
   <arg name="serial_port" default="/dev/ttyUSB0" doc="激光雷达串口号"/>
