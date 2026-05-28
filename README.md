@@ -43,6 +43,10 @@ map ──(gmapping/amcl)──► odom ──(EKF)──► base_link ──┬
 | 导航 | `navigation.launch` | AMCL 定位 + TEB 全向规划 |
 | 里程融合 | 内置 | robot_localization EKF（IMU + 里程计） |
 
+### SDK 与 ROS 坐标系
+
+DJI RoboMaster SDK 的坐标系与 ROS REP-103 标准大部分一致，但 **yaw 旋转方向相反**（SDK 顺时针正，ROS 逆时针正）。驱动节点已在 `_cmd_vel_callback`、`_publish_odometry`、`_publish_imu` 三处统一做了 yaw/z 取反，下游节点可直接使用。
+
 ## 环境依赖
 
 ### 系统要求

@@ -109,6 +109,24 @@ rosrun rm_ep_navigation save_map.sh [地图名称]
 - 订阅 `/cmd_vel`（`geometry_msgs/Twist`）→ `chassis.drive_speed(x, y, z_deg)`
 - `cmd_vel_timeout` 超时自动停车
 
+### SDK 与 ROS 坐标系
+
+RoboMaster SDK 的坐标系与 ROS REP-103 标准大部分一致，但 **yaw 旋转方向相反**：
+
+| 轴 | SDK 方向 | ROS 方向 (REP-103) | 需要取反 |
+|----|---------|-------------------|---------|
+| X | 前 (forward) | 前 (forward) | 否 |
+| Y | 左 (left) | 左 (left) | 否 |
+| Z | 上 (up) | 上 (up) | 否 |
+| Yaw 旋转 | **顺时针正 (CW+)** | **逆时针正 (CCW+)** | **是** |
+
+驱动节点在以下位置做了 yaw/z 取反（保持三处一致）：
+- `_cmd_vel_callback`: `vz_rad = -msg.angular.z`
+- `_publish_odometry`: `yaw = -math.radians(yaw_deg)`
+- `_publish_imu`: `angular_velocity.z = -math.radians(gyro_z)` 及 fallback yaw
+
+注意：SDK 官方示例 `examples/02_chassis/03_speed.py` 中 `y=-y_val` 为左移、`z=-z_val` 为左转，y 轴与 ROS 一致，但 z 轴旋转正方向相反。
+
 ## TF 树结构
 
 ```
