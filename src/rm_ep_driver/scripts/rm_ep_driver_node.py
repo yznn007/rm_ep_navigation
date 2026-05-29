@@ -6,7 +6,7 @@ import threading
 import time
 
 import rospy
-from geometry_msgs.msg import Quaternion, Twist, Vector3
+from geometry_msgs.msg import Quaternion, TransformStamped, Twist, Vector3
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image, Imu, JointState
 from std_msgs.msg import Header
@@ -65,6 +65,7 @@ class RmEpDriver:
 
         self.odom_pub = rospy.Publisher("/odom", Odometry, queue_size=10)
         self.imu_pub = rospy.Publisher("/imu", Imu, queue_size=10)
+        self._tf_broadcaster = TransformBroadcaster()
 
         if self.enable_cmd_vel:
             self.cmd_vel_sub = rospy.Subscriber(
@@ -370,12 +371,12 @@ class RmEpDriver:
             calibrated_yaw = math.radians(yaw_deg + self._yaw_offset_deg)
 
         odom.pose.covariance = [
-            0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.02,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         ]
 
         if vel is not None:
@@ -396,15 +397,26 @@ class RmEpDriver:
             odom.twist.twist.angular.z = 0.0
 
         odom.twist.covariance = [
-            0.05, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.05, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.1,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         ]
 
         self.odom_pub.publish(odom)
+
+        # 发布 odom -> base_link 的 TF 变换
+        t = TransformStamped()
+        t.header.stamp = now
+        t.header.frame_id = self.odom_frame_id
+        t.child_frame_id = self.base_frame_id
+        t.transform.translation.x = odom.pose.pose.position.x
+        t.transform.translation.y = odom.pose.pose.position.y
+        t.transform.translation.z = odom.pose.pose.position.z
+        t.transform.rotation = odom.pose.pose.orientation
+        self._tf_broadcaster.sendTransform(t)
 
     def _publish_imu(self, imu, att, now):
         imu_msg = Imu()
