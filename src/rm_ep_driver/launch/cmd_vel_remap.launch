@@ -1,0 +1,9 @@
+<launch>
+  <arg name="input_topic"  default="/cmd_vel"      doc="输入话题"/>
+  <arg name="output_topic" default="/cmd_vel_rm_ep" doc="输出话题"/>
+
+  <node pkg="rm_ep_driver" type="cmd_vel_remap.py" name="cmd_vel_remap" output="screen">
+    <param name="input_topic"  value="$(arg input_topic)"/>
+    <param name="output_topic" value="$(arg output_topic)"/>
+  </node>
+</launch>

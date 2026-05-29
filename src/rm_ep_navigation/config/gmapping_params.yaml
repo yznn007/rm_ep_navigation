@@ -40,3 +40,8 @@ lasamplestep: 0.005           # 角度采样步长
 
 # TF
 transform_publish_period: 0.05 # TF 发布周期 (秒)
+
+# 坐标系
+base_frame: base_link
+odom_frame: odom
+map_frame: map

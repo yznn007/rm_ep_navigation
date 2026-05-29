@@ -3,6 +3,9 @@
   <arg name="ep_conn_type" default="rndis" doc="连接模式: ap(WiFi直连) / sta(路由器) / rndis(USB)"/>
   <arg name="ep_ip" default="" doc="EP IP地址"/>
   <arg name="enable_cmd_vel" default="true" doc="是否启用速度控制"/>
+  <arg name="enable_cmd_vel_remap" default="true" doc="是否启用 cmd_vel xy 互换中间件"/>
+
+  <include file="$(find rm_ep_driver)/launch/cmd_vel_remap.launch" if="$(arg enable_cmd_vel_remap)"/>
 
   <node name="rm_ep_driver" pkg="rm_ep_driver" type="rm_ep_driver_node.py" output="screen" required="true">
     <rosparam file="$(find rm_ep_driver)/config/rm_ep_params.yaml" command="load"/>

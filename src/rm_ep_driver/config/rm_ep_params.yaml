@@ -31,3 +31,10 @@ init_attitude_calibration: true   # 用初始姿态校准里程计（输出相�
 
 # IMU 加速度补偿
 imu_gravity_constant: 9.86        # 重力常数，>0 则加速度乘以该值（9.86 转为 m/s²）
+
+# IMU 坐标轴对齐（修正 SDK 与 URDF 之间的轴方向差异）
+imu_flip_x: false                 # 翻转 IMU X 轴（acc_x, gyro_x 取反）
+imu_flip_y: false                 # 翻转 IMU Y 轴（acc_y, gyro_y 取反）
+
+# Yaw 偏移（修正 SDK 前进方向与 URDF X+ 方向的偏差）
+yaw_offset_deg: 0.0               # yaw 偏移角度（度），正值=逆时针旋转
