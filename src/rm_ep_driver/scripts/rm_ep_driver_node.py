@@ -68,7 +68,7 @@ class RmEpDriver:
 
         if self.enable_cmd_vel:
             self.cmd_vel_sub = rospy.Subscriber(
-                "/cmd_vel", Twist, self._cmd_vel_callback, queue_size=1
+                "/cmd_vel_rm_ep", Twist, self._cmd_vel_callback, queue_size=1
             )
 
         self._cv_bridge = CvBridge()
@@ -110,6 +110,9 @@ class RmEpDriver:
         self._gimbal_rate = rospy.get_param("~gimbal_rate", 50)
         self._init_attitude_calibration = rospy.get_param("~init_attitude_calibration", True)
         self._imu_gravity_constant = rospy.get_param("~imu_gravity_constant", 9.86)
+        self._imu_flip_x = rospy.get_param("~imu_flip_x", False)
+        self._imu_flip_y = rospy.get_param("~imu_flip_y", False)
+        self._yaw_offset_deg = rospy.get_param("~yaw_offset_deg", 0.0)
 
     def _connect_ep(self):
         if not SDK_AVAILABLE:
@@ -235,7 +238,7 @@ class RmEpDriver:
 
             if self._attitude is not None:
                 yaw_d, pitch_d, roll_d = self._attitude
-                qz = _quat_from_axis_angle((0, 0, 1), -yaw_d)
+                qz = _quat_from_axis_angle((0, 0, 1), -(yaw_d + self._yaw_offset_deg))
                 qy = _quat_from_axis_angle((0, 1, 0), pitch_d)
                 qx = _quat_from_axis_angle((1, 0, 0), roll_d)
                 self._last_attitude_q = _quat_multiply(_quat_multiply(qz, qy), qx)
@@ -338,6 +341,11 @@ class RmEpDriver:
         q.z = cr * cp * sy - sr * sp * cy
         return q
 
+    @staticmethod
+    def _quaternion_to_yaw(q):
+        x, y, z, w = q
+        return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
     def _publish_odometry(self, pos, att, vel, now):
         px, py, pz = pos
         yaw_deg, pitch_deg, roll_deg = att
@@ -350,14 +358,16 @@ class RmEpDriver:
         odom.header.frame_id = self.odom_frame_id
         odom.child_frame_id = self.base_frame_id
 
-        odom.pose.pose.position.x = px
-        odom.pose.pose.position.y = py
+        odom.pose.pose.position.x = py
+        odom.pose.pose.position.y = px
         odom.pose.pose.position.z = 0.0
         if self._init_attitude_calibration and self._last_attitude_q is not None and self._init_orientation is not None:
             q = _quat_multiply(self._last_attitude_q, _quat_inverse(self._init_orientation))
             odom.pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+            calibrated_yaw = self._quaternion_to_yaw(q)
         else:
-            odom.pose.pose.orientation = self._quaternion_from_euler(0.0, 0.0, yaw)
+            odom.pose.pose.orientation = self._quaternion_from_euler(0.0, 0.0, math.radians(yaw_deg + self._yaw_offset_deg))
+            calibrated_yaw = math.radians(yaw_deg + self._yaw_offset_deg)
 
         odom.pose.covariance = [
             0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -370,12 +380,16 @@ class RmEpDriver:
 
         if vel is not None:
             vx, vy, vz = vel
-            odom.twist.twist.linear.x = vx
-            odom.twist.twist.linear.y = vy
+            vx_global = vy
+            vy_global = vx
+            cos_yaw = math.cos(calibrated_yaw)
+            sin_yaw = math.sin(calibrated_yaw)
+            odom.twist.twist.linear.x = vx_global * cos_yaw + vy_global * sin_yaw
+            odom.twist.twist.linear.y = -vx_global * sin_yaw + vy_global * cos_yaw
             odom.twist.twist.linear.z = 0.0
             odom.twist.twist.angular.x = 0.0
             odom.twist.twist.angular.y = 0.0
-            odom.twist.twist.angular.z = math.radians(vz)
+            odom.twist.twist.angular.z = -math.radians(vz)
         else:
             odom.twist.twist.linear.x = 0.0
             odom.twist.twist.linear.y = 0.0
@@ -411,6 +425,12 @@ class RmEpDriver:
 
         if imu is not None:
             acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z = imu
+            if self._imu_flip_x:
+                acc_x = -acc_x
+                gyro_x = -gyro_x
+            if self._imu_flip_y:
+                acc_y = -acc_y
+                gyro_y = -gyro_y
             imu_msg.angular_velocity.x = math.radians(gyro_x)
             imu_msg.angular_velocity.y = math.radians(gyro_y)
             imu_msg.angular_velocity.z = -math.radians(gyro_z)
@@ -475,7 +495,7 @@ class RmEpDriver:
 
         try:
             self.ep_robot.chassis.drive_speed(
-                x=vx, y=vy, z=vz_deg,
+                x=vy, y=vx, z=vz_deg,
                 timeout=self.cmd_vel_timeout
             )
         except Exception as e:
