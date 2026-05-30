@@ -27,7 +27,7 @@ temporalUpdate: 0.5           # 时间更新 (秒，即使静止也强制更新)
 
 # 粒子滤波器
 resampleThreshold: 0.5        # 重采样阈值 (0-1)
-particles: 30                 # 粒子数量
+particles: 50                 # 粒子数量
 xmin: -20.0                   # 地图初始 x 最小值 (m)
 ymin: -20.0                   # 地图初始 y 最小值 (m)
 xmax: 20.0                    # 地图初始 x 最大值 (m)
