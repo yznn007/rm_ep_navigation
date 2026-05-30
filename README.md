@@ -1,281 +1,166 @@
 # RoboMaster EP 建图与导航工作空间
 
+## 项目简介
+
 基于 ROS Noetic 的 DJI RoboMaster EP 自动建图（SLAM）与自主导航系统。
 
-## 工作空间结构
+### 核心功能
 
-```
-catkin_ws/
-└── src/
-    ├── rplidar_ros/              思岚 RPLIDAR A2 激光雷达驱动
-    ├── rm_ep_driver/             RoboMaster EP ROS 驱动节点
-    ├── rm_ep_description/        EP 机器人 URDF 模型
-    ├── rm_ep_navigation/         建图与导航配置包
-```
+- 🚗 **底盘驱动**：RoboMaster EP 全向麦轮驱动，发布里程计、IMU、云台关节、相机图像
+- 📡 **激光雷达感知**：RPLIDAR A2 驱动，360° 激光扫描
+- 🗺️ **SLAM 建图**：gmapping 实时建图，支持遥控/键盘控制遍历
+- 🧭 **自主导航**：AMCL 蒙特卡洛定位 + TEB 全向局部规划 + 代价地图动态避障
+- ~~🎮 **手柄遥控**：手柄控制底盘运动，按钮4启用，支持全向移动~~
 
-## 功能包说明
+## 项目文档
 
-### 1. rm_ep_driver — EP 驱动节点
+[详细文档](docs/details.md) — 工作空间结构、包说明、话题与坐标系、关键配置、常见故障排查
 
-封装 DJI RoboMaster SDK，桥接 ROS 与 EP 硬件。
+## 快速开始
 
-| 数据 | 话题 | 方向 | 说明 |
-|------|------|------|------|
-| 里程计 | `/odom` | 发布 | 底盘编码器推算 |
-| IMU | `/imu` | 发布 | 姿态 + 角速度 + 加速度 |
-| 速度指令 | `/cmd_vel` | 订阅 | 转为 EP 全向麦轮控制 |
+### 环境要求
 
-### 2. rm_ep_description — 机器人模型
+#### 硬件
 
-URDF/XACRO 模型，定义 TF 树：
+- **上位机**：Nvidia Jetson Xavier NX
+- **底盘**：DJI RoboMaster EP（序列号 `3JKDH3B001891M`）
+- **雷达**：思岚 RPLIDAR A2（串口 `/dev/ttyUSB0`）
 
-```
-map ──(gmapping/amcl)──► odom ──(EKF)──► base_link ──┬── base ──┬── gimbal → camera
-                                                      │          └── imu_link
-                                                      └── laser_link
-```
+#### 软件
 
-### 3. rm_ep_navigation — 建图与导航
+- **操作系统**：Ubuntu 20.04
+- **ROS**：Noetic
+- **Python**：3.8+
+- **C++**：C++11
+- **构建工具**：`catkin_make`
 
-| 模式 | launch 文件 | 核心算法 |
-|------|------------|----------|
-| 建图 | `mapping.launch` | gmapping SLAM |
-| 导航 | `navigation.launch` | AMCL 定位 + TEB 全向规划 |
-| 里程融合 | 内置 | robot_localization EKF（IMU + 里程计） |
+### 获取源码
 
-### SDK 与 ROS 坐标系
-
-DJI RoboMaster SDK 的坐标系与 ROS REP-103 标准大部分一致，但 **yaw 旋转方向相反**（SDK 顺时针正，ROS 逆时针正）。驱动节点已在 `_cmd_vel_callback`、`_publish_odometry`、`_publish_imu` 三处统一做了 yaw/z 取反，下游节点可直接使用。
-
-## 环境依赖
-
-### 系统要求
-
-| 项目 | 版本 |
-|------|------|
-| OS | Ubuntu 20.04 |
-| ROS | Noetic |
-| Python | 3.8+ |
-
-### ROS 包依赖
-
-```
-ros-noetic-gmapping
-ros-noetic-amcl
-ros-noetic-move-base
-ros-noetic-map-server
-ros-noetic-robot-state-publisher
-ros-noetic-joint-state-publisher-gui
-ros-noetic-robot-localization
-ros-noetic-teb-local-planner
+```bash
+cd ~
+git clone https://github.com/yznn007/rm_ep_navigation catkin_ws
 ```
 
-### Python 依赖
+### 安装依赖
 
-```
+```bash
+# 初始化 rosdep（首次使用）
+sudo rosdep init && rosdep update
+
+# ROS 包依赖（自动解析所有 package.xml）
+cd ~/catkin_ws
+rosdep install --from-paths src --ignore-src -r -y
+
+# Python 依赖（rosdep 不可解析的 pip 包）
 pip3 install robomaster
 ```
 
-## 安装
-
-### 1. 安装 ROS 依赖
-
-```bash
-sudo apt install -y \
-  ros-noetic-gmapping \
-  ros-noetic-amcl \
-  ros-noetic-move-base \
-  ros-noetic-map-server \
-  ros-noetic-robot-state-publisher \
-  ros-noetic-joint-state-publisher-gui \
-  ros-noetic-robot-localization \
-  ros-noetic-teb-local-planner
-```
-
-### 2. 安装 Python SDK
-
-```bash
-# 官方源
-pip3 install robomaster
-
-# 国内镜像（更快）
-pip3 install robomaster -i https://pypi.tuna.tsinghua.edu.cn/simple
-```
-
-### 3. 编译
+### 构建与环境加载
 
 ```bash
 cd ~/catkin_ws
 catkin_make
-source devel/setup.bash
+source ~/catkin_ws/devel/setup.bash
 ```
 
-## 使用方法
+可选：写入 `~/.bashrc`。
 
-### 底盘控制
+```bash
+echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+```
+
+## 启动
+
+执行前先加载环境（写入 `.bashrc` 可省略）：
 
 ```bash
 source ~/catkin_ws/devel/setup.bash
+```
 
-# 直接启动底盘驱动（使用配置文件中的 SN，默认 3JKDH3B001891M）
+### 底盘启动
+
+```bash
 roslaunch rm_ep_driver rm_ep_bringup.launch
+```
 
-# 或手柄遥控
+### 键盘控制节点
+
+```
+rosrun teleop_twist_keyboard teleop_twist_keyboard.py
+```
+
+### ~~手柄遥控（未测试）~~
+
+```bash
 roslaunch rm_ep_driver teleop.launch
 ```
 
-启动后可通过 `/cmd_vel` 话题控制底盘运动，订阅 `/odom` 和 `/imu` 获取传感器数据。
+> **注意**：`teleop.launch` 默认使用 WiFi 直连模式 (`ep_conn_type:=ap`)。手柄按钮 4 启用控制。
 
-### 建图
+### 建图启动
 
 ```bash
+roslaunch rm_ep_navigation mapping.launch
+```
+
+### 地图保存（默认名称 `default_map`）
+
+```bash
+rosrun rm_ep_navigation save_map.sh [地图名称]
+```
+
+### 导航启动
+
+```bash
+roslaunch rm_ep_navigation navigation.launch \
+  map_file:=~/catkin_ws/src/rm_ep_navigation/maps/你的地图.yaml
+```
+
+## 命令速查
+
+```bash
+# 编译
+catkin_make
+
+# 加载环境
 source ~/catkin_ws/devel/setup.bash
 
-# 直接启动建图（使用默认 SN 和 AP 直连模式）
+# 删除构建产物
+rm -rf build/ devel/
+
+# 查看话题
+rostopic list
+
+# 查看节点
+rosnode list
+
+# 查看 TF 树
+rosrun tf view_frames
+
+# 雷达设备检查
+ls -l /dev/ttyUSB*
+
+# 底盘驱动
+roslaunch rm_ep_driver rm_ep_bringup.launch
+
+# 手柄遥控
+roslaunch rm_ep_driver teleop.launch
+
+# 建图
 roslaunch rm_ep_navigation mapping.launch
 
-# 通过遥控或键盘控制 EP 遍历环境
-# 地图满意后，另开终端保存:
-rosrun rm_ep_navigation save_map.sh my_map
+# 导航
+roslaunch rm_ep_navigation navigation.launch map_file:=/path/to/map.yaml
+
+# 保存地图
+rosrun rm_ep_navigation save_map.sh [名称]
+
+# 键盘控制
+rosrun teleop_twist_keyboard teleop_twist_keyboard.py
+
+# 调试命令
+rostopic echo /odom          # 查看里程计
+rostopic echo /imu           # 查看 IMU
+rostopic echo /cmd_vel       # 查看速度指令
+rostopic echo /scan          # 查看雷达数据
 ```
-
-建图 launch 参数：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `ep_sn` | `3JKDH3B001891M` | EP 序列号 |
-| `ep_conn_type` | `ap` | 连接模式：`ap`(WiFi直连) / `sta`(路由器) / `rndis`(USB) |
-| `ep_ip` | `""` | EP IP 地址 |
-| `serial_port` | `/dev/ttyUSB0` | 雷达串口号 |
-| `rviz` | `true` | 是否启动 RVIZ |
-
-### 导航
-
-```bash
-source ~/catkin_ws/devel/setup.bash
-
-# 加载地图并启动导航
-roslaunch rm_ep_navigation navigation.launch \
-  map_file:=/home/你的用户名/catkin_ws/src/rm_ep_navigation/maps/my_map.yaml
-
-# 在 RVIZ 中使用 "2D Nav Goal" 工具点击目标点即可
-```
-
-导航 launch 参数：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `ep_sn` | `3JKDH3B001891M` | EP 序列号 |
-| `ep_conn_type` | `ap` | 连接模式：`ap`(WiFi直连) / `sta`(路由器) / `rndis`(USB) |
-| `ep_ip` | `""` | EP IP 地址 |
-| `map_file` | `.../maps/map_test.yaml` | 地图文件完整路径 |
-| `serial_port` | `/dev/ttyUSB0` | 雷达串口号 |
-| `rviz` | `true` | 是否启动 RVIZ |
-
-### 地图保存脚本
-
-```bash
-# 保存为指定名称
-rosrun rm_ep_navigation save_map.sh 教室地图
-
-# 不指定名称则保存为 my_map
-rosrun rm_ep_navigation save_map.sh
-```
-
-## 配置调优
-
-所有参数配置文件位于 `rm_ep_navigation/config/`：
-
-| 文件 | 用途 |
-|------|------|
-| `ekf.yaml` | 里程计 + IMU EKF 融合 |
-| `gmapping_params.yaml` | gmapping SLAM 参数 |
-| `amcl_params.yaml` | AMCL 定位参数 |
-| `costmap_common_params.yaml` | 通用代价地图 |
-| `global_costmap_params.yaml` | 全局代价地图 |
-| `local_costmap_params.yaml` | 局部代价地图 |
-| `teb_local_planner_params.yaml` | TEB 全向规划器 |
-| `move_base_params.yaml` | move_base 框架参数 |
-
-### 关键调参项
-
-**速度限制** (`teb_local_planner_params.yaml`)：
-
-```yaml
-max_vel_x: 0.5       # 前向最大速度 (m/s)
-max_vel_y: 0.3       # 横向最大速度 (m/s)，麦轮特有
-max_vel_theta: 0.8   # 最大旋转速度 (rad/s)
-```
-
-**机器人足迹** (`costmap_common_params.yaml`)：
-
-```yaml
-footprint: [[-0.18, -0.14], [-0.18, 0.14], [0.18, 0.14], [0.18, -0.14]]
-```
-
-**障碍物安全距离** (`teb_local_planner_params.yaml`)：
-
-```yaml
-min_obstacle_dist: 0.15   # 最小障碍物距离 (m)
-inflation_radius: 0.30    # 膨胀半径 (m)，在 costmap_common_params 中
-```
-
-## 硬件连接
-
-EP 支持三种连接方式：
-
-| 模式 | 参数 | 说明 |
-|------|------|------|
-| WiFi 直连 | `ep_conn_type:=ap` | 电脑直连 EP 自带 WiFi 热点 |
-| 路由器 | `ep_conn_type:=sta` | EP + 电脑通过路由器通信 |
-| USB | `ep_conn_type:=rndis` | USB 线直连，无需 WiFi |
-
-RPLIDAR A2 通过 USB 连接电脑，默认串口 `/dev/ttyUSB0`。
-
-## 常见问题
-
-**Q: 驱动节点启动失败，提示 "RoboMaster SDK 不可用"**
-
-```bash
-pip3 install robomaster
-```
-
-**Q: EP 连接不上**
-
-确认 EP 已开机，WiFi 直连模式需要电脑连接 EP 的热点；路由器模式需确认在同一局域网。也可尝试指定 IP：
-
-```bash
-roslaunch rm_ep_navigation mapping.launch ep_ip:=192.168.x.x
-```
-
-**Q: 雷达不工作**
-
-```bash
-# 检查串口设备
-ls /dev/ttyUSB*
-# 检查权限
-sudo usermod -a -G dialout $USER
-# 重新登录后生效
-```
-
-**Q: 里程计漂移严重**
-
-EP 麦轮在光滑地面容易打滑，建图时尽量低速平稳移动。EKF 融合 IMU 可部分改善，但无法完全消除。
-
-**Q: 导航时 TEB 报错**
-
-确认 `ros-noetic-teb-local-planner` 已安装：
-
-```bash
-dpkg -l | grep teb-local-planner
-```
-
-## RVIZ 快捷键
-
-| 操作 | 快捷键 |
-|------|--------|
-| 设置初始位姿 | 工具栏 "2D Pose Estimate" |
-| 设置导航目标 | 工具栏 "2D Nav Goal" |
-| 旋转视角 | 鼠标左键拖拽 |
-| 平移视角 | 鼠标中键拖拽 |
-| 缩放 | 滚轮 |
