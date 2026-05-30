@@ -1,216 +1,149 @@
-# AGENTS.md - RoboMaster EP 建图与导航工作空间
+# AGENTS.md — RoboMaster EP 建图与导航工作空间
 
-## 工作空间类型
-ROS Noetic catkin 工作空间，用于 DJI RoboMaster EP 自动建图与导航。
+## 工作空间
 
-## 设备 SN 码
+ROS Noetic catkin 工作空间。DJI RoboMaster EP + RPLIDAR A2 自动建图与导航。
 
-当前 EP 序列号：**`3JKDH3B001891M`**（配置在 `src/rm_ep_driver/config/rm_ep_params.yaml`）
+无测试、无 lint、无 CI。构建产物 (`build/`、`devel/`) 已在 `.gitignore` 排除。
 
 ## 关键命令
 
 ```bash
-# 编译（必须在工作空间根目录执行）
+# 编译（工作空间根目录）
 catkin_make
 
-# 每次新终端必须 source
+# 每个新终端必须 source
 source ~/catkin_ws/devel/setup.bash
 
-# 启动底盘驱动
-roslaunch rm_ep_driver rm_ep_bringup.launch ep_sn:=YOUR_SN
+# 启动底盘驱动（默认 ep_conn_type=rndis，即 USB 连接）
+roslaunch rm_ep_driver rm_ep_bringup.launch
 
-# 手柄遥控（底盘 + joy + teleop）
-roslaunch rm_ep_driver teleop.launch ep_sn:=YOUR_SN
+# 手柄遥控（注意 teleop.launch 默认 ep_conn_type=ap，即 WiFi 直连）
+roslaunch rm_ep_driver teleop.launch
 
-# 启动建图（需要指定 EP SN）
-roslaunch rm_ep_navigation mapping.launch ep_sn:=YOUR_SN
+# 建图（默认 rndis）
+roslaunch rm_ep_navigation mapping.launch
 
-# 启动导航
-roslaunch rm_ep_navigation navigation.launch ep_sn:=YOUR_SN map_file:=/path/to/map.yaml
+# 导航
+roslaunch rm_ep_navigation navigation.launch map_file:=/home/xxx/catkin_ws/src/rm_ep_navigation/maps/my_map.yaml
 
-# 保存地图
-rosrun rm_ep_navigation save_map.sh [地图名称]
+# 保存地图（默认名称 map_test）
+rosrun rm_ep_navigation save_map.sh [名称]
 ```
 
-## 包结构与职责
+### Launch 参数（mapping / navigation 通用）
 
-| 包 | 路径 | 说明 |
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `ep_sn` | `3JKDH3B001891M` | EP 序列号 |
+| `ep_conn_type` | `rndis` | 连接模式: `rndis`(USB) / `ap`(WiFi直连) / `sta`(路由器) |
+| `ep_ip` | `""` | EP IP 地址（留空则通过 SN 自动发现） |
+| `serial_port` | `/dev/ttyUSB0` | 雷达串口 |
+| `rviz` | `true` | 启动 RVIZ |
+| `map_file` | `...maps/map_test.yaml` | (仅 navigation) 地图文件绝对路径 |
+
+### teleop.launch 特殊说明
+
+`teleop.launch` 的 `ep_conn_type` 默认值是 **`ap`**（WiFi 直连），与其他 launch 文件不同。手柄按钮 4 启用控制，轴 1/0/3 分别控制 X/Y/Yaw。
+
+## 包结构
+
+| 包 | 路径 | 职责 |
 |---|---|---|
-| `rm_ep_driver` | `src/rm_ep_driver/` | EP 底盘驱动，发布 `/odom`、`/imu`，订阅 `/cmd_vel` |
-| `rm_ep_navigation` | `src/rm_ep_navigation/` | 建图(gmapping)、导航(AMCL+TEB)、EKF融合 |
-| `rm_ep_description` | `src/rm_ep_description/` | URDF 模型，定义 TF 树 |
-| `rplidar_ros` | `src/rplidar_ros/` | RPLIDAR A2 激光雷达驱动 |
+| `rm_ep_driver` | `src/rm_ep_driver/` | EP 底盘驱动，发布 `/odom`、`/imu`、`/joint_states`，订阅 `/cmd_vel_rm_ep` |
+| `rm_ep_navigation` | `src/rm_ep_navigation/` | 建图(gmapping)、导航(AMCL+TEB)、EKF 配置（当前未启用） |
+| `rm_ep_description` | `src/rm_ep_description/` | URDF 模型，`robot_state_publisher` 发布静态 TF |
+| `rplidar_ros` | `src/rplidar_ros/` | RPLIDAR A2 C++ 驱动 |
 
-## 入口点
+## `/cmd_vel` 数据流（关键）
 
-- **驱动主节点**: `src/rm_ep_driver/scripts/rm_ep_driver_node.py` — `RmEpDriver` 类
-- **底盘 launch**: `src/rm_ep_driver/launch/rm_ep_bringup.launch`
-- **手柄 launch**: `src/rm_ep_driver/launch/teleop.launch`
-- **建图 launch**: `src/rm_ep_navigation/launch/mapping.launch`
-- **导航 launch**: `src/rm_ep_navigation/launch/navigation.launch`
+move_base / teleop 发布 **`/cmd_vel`**，但驱动节点实际订阅 **`/cmd_vel_rm_ep`**。中间通过 `cmd_vel_remap.launch` 桥接：
 
-### mapping.launch 启动顺序
-1. `rm_ep_description` → 加载 URDF + `robot_state_publisher`
-2. `rplidar_ros` → 激光雷达驱动
-3. `rm_ep_driver` → 底盘驱动
-4. `robot_localization` → EKF 融合（`ekf.yaml`）
-5. `gmapping` → SLAM 建图（`gmapping_params.yaml`）
-6. `rviz` → 可视化（可选）
+```
+move_base / teleop → /cmd_vel → [cmd_vel_remap: x↔y swap] → /cmd_vel_rm_ep → 驱动节点
+```
 
-### navigation.launch 启动顺序
-1-4. 同上
-5. `map_server` → 加载预建地图
-6. `amcl` → 蒙特卡洛定位（`amcl_params.yaml`）
-7. `move_base` → 导航框架（TEB 局部规划器 + costmap）
-8. `rviz` → 可视化（可选）
+`rm_ep_bringup.launch` 默认 `enable_cmd_vel_remap:=true`，自动启动桥接节点。驱动节点对 `/cmd_vel_rm_ep` 做了 **第二次** x↔y 映射（`x=vy, y=vx`），两次交换抵消后净效果为直通。
 
-## 配置文件
+## 启动顺序
 
-- `src/rm_ep_driver/config/rm_ep_params.yaml` — EP 连接参数：
+### mapping.launch
+1. `rm_ep_description` → URDF + `robot_state_publisher`
+2. `rplidar_ros` → 激光雷达
+3. `rm_ep_driver` → 底盘驱动（包含 `cmd_vel_remap` 桥接）
+4. ~~EKF~~ → **当前已禁用以避免双源 odom TF 冲突**（驱动直接发布 `odom→base_link` TF）
+5. `gmapping` → SLAM 建图
+6. `rviz`（可选）
+
+### navigation.launch
+1-3. 同上
+4. `map_server` → 加载预建地图
+5. `amcl` → 蒙特卡洛定位
+6. `move_base` → TEB 全向规划 + costmap
+7. `rviz`（可选）
+
+## TF 树（当前实际）
+
+```
+map ──(gmapping / amcl)──► odom ──(rm_ep_driver 直接发布 TF)──► base_link
+                                                                  ├── laser_link (URDF fixed)
+                                                                  ├── imu_link
+                                                                  └── gimbal → camera
+```
+
+EKF 配置文件 (`ekf.yaml`) 仍存在但**两个 launch 中均已注释掉**。如需重新启用 EKF，需同时注释掉驱动中 `_publish_odometry` 末尾的 TF 广播（`_tf_broadcaster.sendTransform`），否则会因双源 `odom→base_link` TF 导致 gmapping/amcl 崩溃。
+
+## 驱动配置 (`rm_ep_params.yaml`)
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `ep_sn` | `"3JKDH3B001891M"` | EP 序列号 |
-| `ep_conn_type` | `"ap"` | 连接模式（ap=WiFi直连 / sta=路由器 / rndis=USB） |
-| `odom_rate` | 20 Hz | 里程计发布频率 |
-| `imu_rate` | 20 Hz | IMU 发布频率 |
-| `cmd_vel_timeout` | 0.5 s | 超时自动停车 |
-| `enable_camera` | true | 启用相机流 |
-| `enable_gimbal` | true | 启用云台关节 |
-| `init_attitude_calibration` | true | 初始姿态校准 |
-| `imu_gravity_constant` | 9.86 | 重力补偿 |
+| `ep_conn_type` | `"rndis"` | 连接模式 |
+| `odom_rate` | 20 | 里程计频率 (Hz) |
+| `imu_rate` | 20 | IMU 频率 (Hz) |
+| `cmd_vel_timeout` | 0.5 | 超时自动停车 (秒) |
+| `enable_cmd_vel` | true | 订阅 `/cmd_vel_rm_ep` |
+| `enable_camera` | true | 发布 `/camera/image_raw` |
+| `enable_gimbal` | true | 发布 `/joint_states` |
+| `init_attitude_calibration` | true | 初始姿态校准（输出相对位姿） |
+| `imu_gravity_constant` | 9.86 | 加速度补偿 |
+| `imu_flip_x` / `imu_flip_y` | false | IMU 轴翻转 |
+| `yaw_offset_deg` | 0.0 | yaw 偏移修正 |
 
-- `src/rm_ep_navigation/config/` — 导航参数：
-  - `ekf.yaml` — EKF 融合（30Hz，融合 odom + IMU，发布 odom→base_link TF）
-  - `gmapping_params.yaml` — 粒子数30，地图分辨率0.05m
-  - `amcl_params.yaml` — 粒子100~2000，likelihood_field 模型
-  - `costmap_common_params.yaml` — 足迹 32cm×28cm，膨胀半径0.30m
-  - `global_costmap_params.yaml` — 20m×20m，2Hz
-  - `local_costmap_params.yaml` — 4m×4m，5Hz，滚动窗口
-  - `teb_local_planner_params.yaml` — 全向，vx=0.5, vy=0.3, vtheta=0.8
-  - `move_base_params.yaml` — 控制器10Hz，规划器1Hz
+## SDK 坐标系（不会再有人告诉你的坑）
 
-## 硬件依赖
+RoboMaster SDK yaw 旋转方向与 ROS REP-103 **相反**（SDK 顺时针正，ROS 逆时针正）。驱动在以下位置做了取反：
 
-- DJI RoboMaster EP（需安装 `pip3 install robomaster`）
-- RPLIDAR A2 激光雷达（串口 `/dev/ttyUSB0`）
-- 手柄（可选，通过 `teleop.launch` 启动，按钮4启用，轴1/0/3控制）
-
-## 驱动节点内部逻辑
-
-`RmEpDriver` 类 (`rm_ep_driver_node.py`):
-
-**数据流**:
-- `chassis.sub_position` + `sub_attitude` + `sub_velocity` → `/odom`（frame_id=`odom`, child=`base_link`）
-- `chassis.sub_imu` → `/imu`（frame_id=`imu_link`）
-- 欧拉角→四元数转换（ZYX 顺序），初始朝向校准
-
-**控制流**:
-- 订阅 `/cmd_vel`（`geometry_msgs/Twist`）→ `chassis.drive_speed(x, y, z_deg)`
-- `cmd_vel_timeout` 超时自动停车
-
-### SDK 与 ROS 坐标系
-
-RoboMaster SDK 的坐标系与 ROS REP-103 标准大部分一致，但 **yaw 旋转方向相反**：
-
-| 轴 | SDK 方向 | ROS 方向 (REP-103) | 需要取反 |
-|----|---------|-------------------|---------|
-| X | 前 (forward) | 前 (forward) | 否 |
-| Y | 左 (left) | 左 (left) | 否 |
-| Z | 上 (up) | 上 (up) | 否 |
-| Yaw 旋转 | **顺时针正 (CW+)** | **逆时针正 (CCW+)** | **是** |
-
-驱动节点在以下位置做了 yaw/z 取反（保持三处一致）：
 - `_cmd_vel_callback`: `vz_rad = -msg.angular.z`
-- `_publish_odometry`: `yaw = -math.radians(yaw_deg)`
-- `_publish_imu`: `angular_velocity.z = -math.radians(gyro_z)` 及 fallback yaw
+- `_publish_odometry`: 姿态四元数 Z 轴取反，线速度 `angular.z = -math.radians(vz)`
+- `_publish_imu`: `angular_velocity.z = -math.radians(gyro_z)`
 
-注意：SDK 官方示例 `examples/02_chassis/03_speed.py` 中 `y=-y_val` 为左移、`z=-z_val` 为左转，y 轴与 ROS 一致，但 z 轴旋转正方向相反。
+同时，SDK x/y 轴与 ROS 有交换：SDK `(x, y)` = ROS `(y, x)`。驱动中 `_publish_odometry` 做了 `position.x = py; position.y = px`，速度也做了对应旋转。**修改任何坐标映射时必须保持这三处一致。**
 
-## TF 树结构
+## 重要入口
 
-```
-map ──(gmapping/amcl)──► odom ──(EKF)──► base_link ──┬── base (底盘STL)
-                                                      │    ├── gimbal_yaw_joint → gimbal_base → gimbal_pitch_joint → gimbal_head → camera_link → camera_link_optical_frame
-                                                      │    └── imu_link
-                                                      └── laser_link (URDF fixed 关节，robot_state_publisher 发布)
-```
-
-## 源目录结构
-
-```
-src/
-├── rm_ep_driver/
-│   ├── launch/rm_ep_bringup.launch, teleop.launch
-│   ├── scripts/rm_ep_driver_node.py
-│   └── config/rm_ep_params.yaml
-├── rm_ep_navigation/
-│   ├── launch/mapping.launch, navigation.launch
-│   ├── scripts/save_map.sh
-│   ├── config/ (8个 YAML)
-│   ├── rviz/mapping_nav.rviz
-│   └── maps/ (.gitkeep)
-├── rm_ep_description/
-│   ├── urdf/rm_ep.urdf.xacro
-│   ├── launch/description.launch, display.launch
-│   └── meshes/visual/ (base.stl, gimbal_*.stl)
-├── rplidar_ros/ (C++ 驱动 + SDK)
-```
-
-## 重要约定
-
-- 所有 Python 脚本使用 `#!/usr/bin/env python3`
-- 无测试框架、无 lint 配置、无 CI 流程
-- 构建产物 (`build/`, `devel/`) 已在 `.gitignore` 排除
-- 地图文件保存在 `src/rm_ep_navigation/maps/`
-- 许可证：MIT
+- 驱动节点: `src/rm_ep_driver/scripts/rm_ep_driver_node.py` — `RmEpDriver` 类
+- cmd_vel 桥接: `src/rm_ep_driver/scripts/cmd_vel_remap.py`
+- 建图配置: `src/rm_ep_navigation/config/gmapping_params.yaml`（30 粒子，0.05m 分辨率）
+- 导航配置: `amcl_params.yaml` + `teb_local_planner_params.yaml` + costmap 系列
+- 地图保存: `src/rm_ep_navigation/scripts/save_map.sh`
+- 地图目录: `src/rm_ep_navigation/maps/`
 
 ## 常见问题
 
 - **SDK 未安装**: `pip3 install robomaster`
 - **串口权限**: `sudo usermod -a -G dialout $USER` 后重新登录
-- **EP 连接失败**: 检查 SN 号，或尝试指定 IP `ep_ip:=192.168.x.x`
-- **里程计漂移**: EP 麦轮在光滑地面易打滑，建图时保持低速平稳移动
+- **EP 连接失败**: 检查 SN，或指定 IP `ep_ip:=192.168.x.x`
+- **连接模式**: 默认 USB (`rndis`)，WiFi 直连用 `ep_conn_type:=ap`，路由器用 `sta`
+- **里程计漂移**: EP 麦轮在光滑地面易打滑，建图时低速平稳移动
 
 ## Git 提交规范
 
-使用 Conventional Commits 格式：
+Conventional Commits，subject 中文动词开头，不超过 50 字符。类型: `feat` / `fix` / `perf` / `docs` / `refactor` / `style` / `test` / `chore`。scope 如 `launch`、`driver`、`amcl`。
 
-```
-<type>[(scope)]: <subject>
+## 环境依赖
 
-[body]
-```
-
-### Type 类型
-
-| Type | 说明 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | 修复 bug 或参数错误 |
-| `perf` | 性能优化、参数调优 |
-| `docs` | 文档变更 |
-| `refactor` | 代码重构（不改变行为） |
-| `style` | 代码格式（不影响运行） |
-| `test` | 测试相关 |
-| `chore` | 杂项（构建、配置、依赖） |
-
-### 规则
-
-- `subject` 使用中文，动词开头，不超过 50 字符
-- `scope` 可选，标识影响范围（如 `launch`、`amcl`、`driver`）
-- `body` 分行列出具体变更，每行 72 字符内
-- `subject` 结尾不加句号
-- 破坏性变更在 body 加入 `BREAKING CHANGE:` 说明
-
-### 示例
-
-```
-fix(launch): 统一 EP 连接参数默认值，修正雷达波特率
-
-将 4 个 launch 文件的 ep_sn 默认值统一为 3JKDH3B001891M
-统一 ep_conn_type 默认为 ap，新增 rndis(USB) 连接模式注释
-teleop.launch 补全 ep_ip 参数传递
-修正 RPLIDAR A2 串口波特率 115200 → 256000
-修复 rm_ep_driver_node.py 代码默认值与 YAML 对齐
-```
+- Ubuntu 20.04 + ROS Noetic
+- ROS 包: `gmapping` `amcl` `move-base` `map-server` `robot-state-publisher` `robot-localization` `teb-local-planner`
+- Python: `robomaster` `cv_bridge`
+- 所有 Python 脚本使用 `#!/usr/bin/env python3`
