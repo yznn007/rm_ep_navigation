@@ -407,16 +407,16 @@ class RmEpDriver:
 
         self.odom_pub.publish(odom)
 
-        # 发布 odom -> base_link 的 TF 变换
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.odom_frame_id
-        t.child_frame_id = self.base_frame_id
-        t.transform.translation.x = odom.pose.pose.position.x
-        t.transform.translation.y = odom.pose.pose.position.y
-        t.transform.translation.z = odom.pose.pose.position.z
-        t.transform.rotation = odom.pose.pose.orientation
-        self._tf_broadcaster.sendTransform(t)
+        # odom -> base_link 的 TF 由 EKF 发布，此处不再广播（避免双源冲突）
+        # t = TransformStamped()
+        # t.header.stamp = now
+        # t.header.frame_id = self.odom_frame_id
+        # t.child_frame_id = self.base_frame_id
+        # t.transform.translation.x = odom.pose.pose.position.x
+        # t.transform.translation.y = odom.pose.pose.position.y
+        # t.transform.translation.z = odom.pose.pose.position.z
+        # t.transform.rotation = odom.pose.pose.orientation
+        # self._tf_broadcaster.sendTransform(t)
 
     def _publish_imu(self, imu, att, now):
         imu_msg = Imu()
