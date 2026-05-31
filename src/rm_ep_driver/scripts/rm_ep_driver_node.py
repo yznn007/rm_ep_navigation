@@ -359,8 +359,8 @@ class RmEpDriver:
         odom.header.frame_id = self.odom_frame_id
         odom.child_frame_id = self.base_frame_id
 
-        odom.pose.pose.position.x = py
-        odom.pose.pose.position.y = px
+        odom.pose.pose.position.x = px
+        odom.pose.pose.position.y = py
         odom.pose.pose.position.z = 0.0
         if self._init_attitude_calibration and self._last_attitude_q is not None and self._init_orientation is not None:
             q = _quat_multiply(self._last_attitude_q, _quat_inverse(self._init_orientation))
@@ -381,12 +381,12 @@ class RmEpDriver:
 
         if vel is not None:
             vx, vy, vz = vel
-            vx_global = vy
-            vy_global = vx
+            vx_global = vx
+            vy_global = vy
             cos_yaw = math.cos(calibrated_yaw)
             sin_yaw = math.sin(calibrated_yaw)
-            odom.twist.twist.linear.x = vx_global * cos_yaw + vy_global * sin_yaw
-            odom.twist.twist.linear.y = -vx_global * sin_yaw + vy_global * cos_yaw
+            odom.twist.twist.linear.x = vx_global
+            odom.twist.twist.linear.y = vy_global
             odom.twist.twist.linear.z = 0.0
             odom.twist.twist.angular.x = 0.0
             odom.twist.twist.angular.y = 0.0
@@ -412,8 +412,8 @@ class RmEpDriver:
         t.header.stamp = now
         t.header.frame_id = self.odom_frame_id
         t.child_frame_id = self.base_frame_id
-        t.transform.translation.x = odom.pose.pose.position.x
-        t.transform.translation.y = odom.pose.pose.position.y
+        t.transform.translation.x = odom.pose.pose.position.y
+        t.transform.translation.y = odom.pose.pose.position.x
         t.transform.translation.z = odom.pose.pose.position.z
         t.transform.rotation = odom.pose.pose.orientation
         self._tf_broadcaster.sendTransform(t)
