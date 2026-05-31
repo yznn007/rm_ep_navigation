@@ -9,7 +9,7 @@
   <arg name="ep_ip" default="" doc="EP IP 地址"/>
   <arg name="lidar_frame" default="laser_link" doc="激光雷达 TF 帧名"/>
   <arg name="serial_port" default="/dev/ttyUSB0" doc="激光雷达串口号"/>
-  <arg name="map_file" default="$(find rm_ep_navigation)/maps/map_test.yaml" doc="地图文件路径"/>
+  <arg name="map_file" default="$(find rm_ep_navigation)/maps/default_map.yaml" doc="地图文件路径"/>
   <arg name="rviz" default="true" doc="是否启动 RVIZ"/>
 
   <!-- ========== 1. 机器人模型 (URDF + TF) ========== -->
@@ -60,5 +60,5 @@
 
   <!-- ========== 8. RVIZ 可视化 ========== -->
   <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-        args="-d $(find rm_ep_navigation)/rviz/mapping_nav.rviz"/>
+        args="-d $(find rm_ep_navigation)/rviz/nav.rviz"/>
 </launch>

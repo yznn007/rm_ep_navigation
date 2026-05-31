@@ -103,7 +103,7 @@ roslaunch rm_ep_driver teleop.launch
 roslaunch rm_ep_navigation mapping.launch
 ```
 
-### 地图保存（默认名称 `map_test`）
+### 地图保存（默认名称 `default_map`）
 
 ```bash
 rosrun rm_ep_navigation save_map.sh [地图名称]
