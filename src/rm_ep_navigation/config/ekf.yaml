@@ -19,33 +19,34 @@ publish_acceleration: false
 # 输入1: EP 里程计 /odom
 # ========================
 odom0: /odom
-odom0_config:
-  [true,  true,  false,   # x, y, z (位置)
-   false, false, true,    # roll, pitch, yaw (姿态)
-   true,  true,  false,   # vx, vy, vz (线速度)
-   false, false, true,    # vroll, vpitch, vyaw (角速度)
-   false, false, false]   # ax, ay, az (线加速度)
-
+odom0_config: [false, false, false,  # 放弃里程计的绝对位置 X, Y, Z
+               false, false, false,  # 放弃里程计的绝对角度
+               true,  true,  false,  # 【关键】融合里程计的本体速度 vx, vy！(麦轮支持横移)
+               false, false, true,   # 融合里程计的自身角速度 vyaw
+               false, false, false]
 odom0_queue_size: 10
 odom0_nodelay: true
-odom0_differential: false
+odom0_differential: false            # 纯速度输入不需要开启差分
 odom0_relative: false
 
 # ========================
 # 输入2: EP IMU /imu
 # ========================
-imu0: /imu
-imu0_config:
-  [false, false, false,   # x, y, z (位置)
-   true,  true,  true,    # roll, pitch, yaw (姿态)
-   false, false, false,   # vx, vy, vz (线速度)
-   true,  true,  true,    # vroll, vpitch, vyaw (角速度)
-   true,  true,  true]    # ax, ay, az (线加速度)
 
+imu0: /imu
+imu0_config: [false, false, false,  # x, y, z
+               false, false, true,   # 【关键】只融合 IMU 的绝对 Yaw 角作为方向基准
+               false, false, false,  # 【修正】坚决关闭 IMU 的 vx, vy, vz 速度融合！
+               false, false, true,   # 融合 IMU 的角速度 vyaw
+               true,  true,  false]  # 融合 IMU 的线加速度 ax, ay
 imu0_queue_size: 10
 imu0_nodelay: true
 imu0_differential: false
-imu0_relative: false
+
+# 【核心参数】
+# 设为 true 后，EKF 会将机器人上电瞬间 IMU 读到的第一个 Yaw 角视为 0 度。
+# 它会自动计算一个偏置，把 odom 坐标系“旋转”到与机器人初始朝向完全重合的方向！
+imu0_relative: true
 
 # ========================
 # 过程噪声协方差
