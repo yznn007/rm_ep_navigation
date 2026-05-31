@@ -69,7 +69,7 @@ class RmEpDriver:
 
         if self.enable_cmd_vel:
             self.cmd_vel_sub = rospy.Subscriber(
-                "/cmd_vel_rm_ep", Twist, self._cmd_vel_callback, queue_size=1
+                "/cmd_vel", Twist, self._cmd_vel_callback, queue_size=1
             )
 
         self._cv_bridge = CvBridge()
@@ -359,8 +359,8 @@ class RmEpDriver:
         odom.header.frame_id = self.odom_frame_id
         odom.child_frame_id = self.base_frame_id
 
-        odom.pose.pose.position.x = py
-        odom.pose.pose.position.y = px
+        odom.pose.pose.position.x = -py
+        odom.pose.pose.position.y = -px
         odom.pose.pose.position.z = 0.0
         if self._init_attitude_calibration and self._last_attitude_q is not None and self._init_orientation is not None:
             q = _quat_multiply(self._last_attitude_q, _quat_inverse(self._init_orientation))
@@ -381,12 +381,12 @@ class RmEpDriver:
 
         if vel is not None:
             vx, vy, vz = vel
-            vx_global = vy
-            vy_global = vx
+            vx_global = -vy
+            vy_global = -vx
             cos_yaw = math.cos(calibrated_yaw)
             sin_yaw = math.sin(calibrated_yaw)
-            odom.twist.twist.linear.x = vx_global * cos_yaw + vy_global * sin_yaw
-            odom.twist.twist.linear.y = -vx_global * sin_yaw + vy_global * cos_yaw
+            odom.twist.twist.linear.x = vx_global
+            odom.twist.twist.linear.y = vy_global
             odom.twist.twist.linear.z = 0.0
             odom.twist.twist.angular.x = 0.0
             odom.twist.twist.angular.y = 0.0
@@ -407,16 +407,16 @@ class RmEpDriver:
 
         self.odom_pub.publish(odom)
 
-        # 发布 odom -> base_link 的 TF 变换
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = self.odom_frame_id
-        t.child_frame_id = self.base_frame_id
-        t.transform.translation.x = odom.pose.pose.position.x
-        t.transform.translation.y = odom.pose.pose.position.y
-        t.transform.translation.z = odom.pose.pose.position.z
-        t.transform.rotation = odom.pose.pose.orientation
-        self._tf_broadcaster.sendTransform(t)
+        # TF 广播已禁用：EKF 启用时由 ekf_localization_node 发布 odom→base_link
+        # t = TransformStamped()
+        # t.header.stamp = now
+        # t.header.frame_id = self.odom_frame_id
+        # t.child_frame_id = self.base_frame_id
+        # t.transform.translation.x = odom.pose.pose.position.x
+        # t.transform.translation.y = odom.pose.pose.position.y
+        # t.transform.translation.z = odom.pose.pose.position.z
+        # t.transform.rotation = odom.pose.pose.orientation
+        # self._tf_broadcaster.sendTransform(t)
 
     def _publish_imu(self, imu, att, now):
         imu_msg = Imu()
@@ -507,7 +507,7 @@ class RmEpDriver:
 
         try:
             self.ep_robot.chassis.drive_speed(
-                x=vy, y=vx, z=vz_deg,
+                x=vx, y=vy, z=vz_deg,
                 timeout=self.cmd_vel_timeout
             )
         except Exception as e:

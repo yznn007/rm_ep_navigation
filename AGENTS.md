@@ -27,7 +27,7 @@ roslaunch rm_ep_navigation mapping.launch
 # 导航
 roslaunch rm_ep_navigation navigation.launch map_file:=/home/xxx/catkin_ws/src/rm_ep_navigation/maps/my_map.yaml
 
-# 保存地图（默认名称 map_test）
+# 保存地图（默认名称 default_map）
 rosrun rm_ep_navigation save_map.sh [名称]
 ```
 
@@ -40,7 +40,7 @@ rosrun rm_ep_navigation save_map.sh [名称]
 | `ep_ip` | `""` | EP IP 地址（留空则通过 SN 自动发现） |
 | `serial_port` | `/dev/ttyUSB0` | 雷达串口 |
 | `rviz` | `true` | 启动 RVIZ |
-| `map_file` | `...maps/map_test.yaml` | (仅 navigation) 地图文件绝对路径 |
+| `map_file` | `...maps/default_map.yaml` | (仅 navigation) 地图文件绝对路径 |
 
 ### teleop.launch 特殊说明
 

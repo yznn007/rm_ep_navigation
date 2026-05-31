@@ -31,10 +31,10 @@
     <arg name="enable_cmd_vel" value="true"/>
   </include>
 
-  <!-- ========== 4. robot_localization EKF 融合 (已禁用，直接使用 odom) ========== -->
-  <!-- <node name="ekf_localization" pkg="robot_localization" type="ekf_localization_node" output="screen">
+  <!-- ========== 4. robot_localization EKF 融合 ========== -->
+  <node name="ekf_localization" pkg="robot_localization" type="ekf_localization_node" output="screen">
     <rosparam file="$(find rm_ep_navigation)/config/ekf.yaml" command="load"/>
-  </node> -->
+  </node>
 
   <!-- ========== 5. gmapping SLAM ========== -->
   <node name="gmapping" pkg="gmapping" type="slam_gmapping" output="screen">

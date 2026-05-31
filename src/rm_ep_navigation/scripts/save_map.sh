@@ -4,7 +4,7 @@
 #   rosrun rm_ep_navigation save_map.sh [地图名称]
 #   ./scripts/save_map.sh [地图名称]
 
-MAP_NAME=${1:-map_test}
+MAP_NAME=${1:-default_map}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 MAP_DIR="$(cd "$SCRIPT_DIR/../maps" 2>/dev/null && pwd || echo "$SCRIPT_DIR/../maps")"
 
