@@ -15,8 +15,8 @@ catkin_make
 # 每个新终端必须 source
 source ~/catkin_ws/devel/setup.bash
 
-# 启动底盘驱动（默认 ep_conn_type=rndis，即 USB 连接）
-roslaunch rm_ep_driver rm_ep_bringup.launch
+# 启动底盘驱动（默认 rndis，即 USB 连接）
+roslaunch rm_ep_driver rm_ep_chassis_bringup.launch
 
 # 手柄遥控（注意 teleop.launch 默认 ep_conn_type=ap，即 WiFi 直连）
 roslaunch rm_ep_driver teleop.launch
@@ -50,29 +50,29 @@ rosrun rm_ep_navigation save_map.sh [名称]
 
 | 包 | 路径 | 职责 |
 |---|---|---|
-| `rm_ep_driver` | `src/rm_ep_driver/` | EP 底盘驱动，发布 `/odom`、`/imu`、`/joint_states`，订阅 `/cmd_vel_rm_ep` |
-| `rm_ep_navigation` | `src/rm_ep_navigation/` | 建图(gmapping)、导航(AMCL+TEB)、EKF 配置（当前未启用） |
+| `rm_ep_driver` | `src/rm_ep_driver/` | EP 底盘驱动，发布 `/odom`、`/imu`，订阅 `/cmd_vel` |
+| `rm_ep_navigation` | `src/rm_ep_navigation/` | 建图(gmapping)、导航(AMCL+TEB)、EKF 融合 |
 | `rm_ep_description` | `src/rm_ep_description/` | URDF 模型，`robot_state_publisher` 发布静态 TF |
 | `rplidar_ros` | `src/rplidar_ros/` | RPLIDAR A2 C++ 驱动 |
 
 ## `/cmd_vel` 数据流（关键）
 
-move_base / teleop 发布 **`/cmd_vel`**，但驱动节点实际订阅 **`/cmd_vel_rm_ep`**。中间通过 `cmd_vel_remap.launch` 桥接：
+move_base / teleop 发布 **`/cmd_vel`**，驱动节点直接订阅 **`/cmd_vel`**：
 
 ```
-move_base / teleop → /cmd_vel → [cmd_vel_remap: x↔y swap] → /cmd_vel_rm_ep → 驱动节点
+move_base / teleop → /cmd_vel → 驱动节点 → SDK drive_speed
 ```
 
-`rm_ep_bringup.launch` 默认 `enable_cmd_vel_remap:=true`，自动启动桥接节点。驱动节点对 `/cmd_vel_rm_ep` 做了 **第二次** x↔y 映射（`x=vy, y=vx`），两次交换抵消后净效果为直通。
+驱动节点内部做坐标变换：`x=msg.linear.x, y=-msg.linear.y, z=-deg(msg.angular.z)`
 
 ## 启动顺序
 
 ### mapping.launch
 1. `rm_ep_description` → URDF + `robot_state_publisher`
 2. `rplidar_ros` → 激光雷达
-3. `rm_ep_driver` → 底盘驱动（包含 `cmd_vel_remap` 桥接）
-4. ~~EKF~~ → **当前已禁用以避免双源 odom TF 冲突**（驱动直接发布 `odom→base_link` TF）
-5. `gmapping` → SLAM 建图
+3. `rm_ep_driver` → 底盘驱动
+4. `robot_localization` EKF → 融合 odom + IMU，发布 `odom→base_link` TF
+5. `gmapping` → SLAM 建图，发布 `map→odom` TF
 6. `rviz`（可选）
 
 ### navigation.launch
@@ -82,50 +82,75 @@ move_base / teleop → /cmd_vel → [cmd_vel_remap: x↔y swap] → /cmd_vel_rm_
 6. `move_base` → TEB 全向规划 + costmap
 7. `rviz`（可选）
 
-## TF 树（当前实际）
+## TF 树
 
 ```
-map ──(gmapping / amcl)──► odom ──(rm_ep_driver 直接发布 TF)──► base_link
-                                                                  ├── laser_link (URDF fixed)
+map ──(gmapping / amcl)──► odom ──(EKF)──► base_link ──(URDF)──► laser_link
                                                                   ├── imu_link
-                                                                  └── gimbal → camera
+                                                                  ├── chassis_base_link
+                                                                  │   └── arm → camera
+                                                                  └── wheels (4个麦轮)
 ```
 
-EKF 配置文件 (`ekf.yaml`) 仍存在但**两个 launch 中均已注释掉**。如需重新启用 EKF，需同时注释掉驱动中 `_publish_odometry` 末尾的 TF 广播（`_tf_broadcaster.sendTransform`），否则会因双源 `odom→base_link` TF 导致 gmapping/amcl 崩溃。
+**重要**：底盘驱动不发布 TF，由 EKF 统一发布 `odom→base_link`。
 
-## 驱动配置 (`rm_ep_params.yaml`)
+## 坐标系映射（SDK → ROS）
+
+SDK 坐标系与 ROS 坐标系差异：
+- **y 轴方向相反**：SDK y 正=右，ROS y 正=左
+- **yaw 方向相反**：SDK 顺时针正，ROS 逆时针正
+
+驱动中的映射（与 ROS2 一致）：
+- 位置：`x=px, y=-py`
+- 速度：`vx=vgx, vy=-vgy`（世界坐标系）
+- 姿态：`yaw=-yaw_deg, pitch=-pitch_deg, roll=roll_deg`
+- IMU：`acc_y=-acc_y, acc_z=-acc_z, gyro_y=-gyro_y, gyro_z=-gyro_z`
+- cmd_vel：`x=x, y=-y, z=-z`
+
+**修改任何坐标映射时必须保持 odom 和 cmd_vel 一致。**
+
+## EKF 配置
+
+EKF 融合策略（`ekf.yaml`）：
+- **odom**：绝对位置 X,Y + 世界坐标系速度 vx,vy + 角速度 vyaw
+- **IMU**：绝对 Yaw 角 + 角速度 vyaw + 加速度 ax,ay
+- `imu0_relative: true`：上电瞬间 yaw 视为 0 度
+
+## 驱动配置
+
+新驱动 `rm_ep_chassis_driver.py` 从 ROS2 移植，参数通过 launch 文件传递，不使用独立的 yaml 配置文件。
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `ep_sn` | `"3JKDH3B001891M"` | EP 序列号 |
-| `ep_conn_type` | `"rndis"` | 连接模式 |
+| `ep_sn` | `3JKDH3B001891M` | EP 序列号 |
+| `ep_conn_type` | `rndis` | 连接模式 |
 | `odom_rate` | 20 | 里程计频率 (Hz) |
-| `imu_rate` | 20 | IMU 频率 (Hz) |
 | `cmd_vel_timeout` | 0.5 | 超时自动停车 (秒) |
-| `enable_cmd_vel` | true | 订阅 `/cmd_vel_rm_ep` |
-| `enable_camera` | true | 发布 `/camera/image_raw` |
-| `enable_gimbal` | true | 发布 `/joint_states` |
-| `init_attitude_calibration` | true | 初始姿态校准（输出相对位姿） |
-| `imu_gravity_constant` | 9.86 | 加速度补偿 |
-| `imu_flip_x` / `imu_flip_y` | false | IMU 轴翻转 |
-| `yaw_offset_deg` | 0.0 | yaw 偏移修正 |
+| `enable_cmd_vel` | true | 订阅 `/cmd_vel` |
+| `imu_has_orientation` | true | IMU 消息包含姿态 |
 
-## SDK 坐标系（不会再有人告诉你的坑）
+## SDK 坐标系坑
 
-RoboMaster SDK yaw 旋转方向与 ROS REP-103 **相反**（SDK 顺时针正，ROS 逆时针正）。驱动在以下位置做了取反：
+RoboMaster SDK 使用 `is` 比较字符串（不是 `==`），驱动必须使用 SDK 常量对象：
 
-- `_cmd_vel_callback`: `vz_rad = -msg.angular.z`
-- `_publish_odometry`: 姿态四元数 Z 轴取反，线速度 `angular.z = -math.radians(vz)`
-- `_publish_imu`: `angular_velocity.z = -math.radians(gyro_z)`
-
-同时，SDK x/y 轴与 ROS 有交换：SDK `(x, y)` = ROS `(y, x)`。驱动中 `_publish_odometry` 做了 `position.x = py; position.y = px`，速度也做了对应旋转。**修改任何坐标映射时必须保持这三处一致。**
+```python
+from robomaster import conn as rm_conn
+conn_type_map = {
+    'ap': rm_conn.CONNECTION_WIFI_AP,
+    'sta': rm_conn.CONNECTION_WIFI_STA,
+    'rndis': rm_conn.CONNECTION_USB_RNDIS,
+}
+conn_type = conn_type_map.get(self.ep_conn_type, self.ep_conn_type)
+```
 
 ## 重要入口
 
-- 驱动节点: `src/rm_ep_driver/scripts/rm_ep_driver_node.py` — `RmEpDriver` 类
-- cmd_vel 桥接: `src/rm_ep_driver/scripts/cmd_vel_remap.py`
+- 驱动节点: `src/rm_ep_driver/scripts/rm_ep_chassis_driver.py` — `RmEpChassisDriver` 类
+- 底盘 bringup: `src/rm_ep_driver/launch/rm_ep_chassis_bringup.launch`
+- URDF: `src/rm_ep_description/urdf/rm_ep.urdf.xacro`
 - 建图配置: `src/rm_ep_navigation/config/gmapping_params.yaml`（30 粒子，0.05m 分辨率）
 - 导航配置: `amcl_params.yaml` + `teb_local_planner_params.yaml` + costmap 系列
+- EKF 配置: `src/rm_ep_navigation/config/ekf.yaml`
 - 地图保存: `src/rm_ep_navigation/scripts/save_map.sh`
 - 地图目录: `src/rm_ep_navigation/maps/`
 
@@ -136,14 +161,15 @@ RoboMaster SDK yaw 旋转方向与 ROS REP-103 **相反**（SDK 顺时针正，R
 - **EP 连接失败**: 检查 SN，或指定 IP `ep_ip:=192.168.x.x`
 - **连接模式**: 默认 USB (`rndis`)，WiFi 直连用 `ep_conn_type:=ap`，路由器用 `sta`
 - **里程计漂移**: EP 麦轮在光滑地面易打滑，建图时低速平稳移动
+- **robot_state_publisher 崩溃**: 检查 URDF 中是否有重复的材质定义
 
 ## Git 提交规范
 
-Conventional Commits，subject 中文动词开头，不超过 50 字符。类型: `feat` / `fix` / `perf` / `docs` / `refactor` / `style` / `test` / `chore`。scope 如 `launch`、`driver`、`amcl`。
+Conventional Commits，subject 中文动词开头，不超过 50 字符。类型: `feat` / `fix` / `perf` / `docs` / `refactor` / `style` / `test` / `chore`。scope 如 `launch`、`driver`、`amcl`、`description`。
 
 ## 环境依赖
 
 - Ubuntu 20.04 + ROS Noetic
 - ROS 包: `gmapping` `amcl` `move-base` `map-server` `robot-state-publisher` `robot-localization` `teb-local-planner`
-- Python: `robomaster` `cv_bridge`
+- Python: `robomaster` `cv_bridge` `defusedxml`
 - 所有 Python 脚本使用 `#!/usr/bin/env python3`
