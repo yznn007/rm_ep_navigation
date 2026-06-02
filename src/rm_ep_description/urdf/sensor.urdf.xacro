@@ -5,7 +5,7 @@
   <xacro:macro name="laser" params="tf_prefix=''">
     <link name="${tf_prefix}laser_link"/>
     <joint name="${tf_prefix}base_to_laser" type="fixed">
-      <origin xyz="0 0 0.15" rpy="0 0 ${pi}"/>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
       <parent link="${tf_prefix}base_link"/>
       <child link="${tf_prefix}laser_link"/>
     </joint>
