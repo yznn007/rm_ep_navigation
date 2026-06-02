@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<robot name="robomaster_ep"
+  xmlns:xacro="http://playerstage.sourceforge.net/gazebo/xmlschema/#xacro">
+
+  <xacro:arg name="name" default=""/>
+  <xacro:property name="_name" value="$(arg name)"/>
+  <xacro:if value="${_name != ''}">
+    <xacro:property name="tf_prefix" value="${_name}/"/>
+  </xacro:if>
+  <xacro:if value="${_name == ''}">
+    <xacro:property name="tf_prefix" value=""/>
+  </xacro:if>
+  <xacro:arg name="camera_yaw" default="0.0"/>
+
+  <xacro:include filename="$(find rm_ep_description)/urdf/base.urdf.xacro"/>
+  <xacro:include filename="$(find rm_ep_description)/urdf/arm.urdf.xacro"/>
+  <xacro:include filename="$(find rm_ep_description)/urdf/camera.urdf.xacro"/>
+  <xacro:include filename="$(find rm_ep_description)/urdf/extension.urdf.xacro"/>
+  <xacro:include filename="$(find rm_ep_description)/urdf/intelligent_controller.urdf.xacro"/>
+  <xacro:include filename="$(find rm_ep_description)/urdf/sensor.urdf.xacro"/>
+
+  <xacro:base tf_prefix="${tf_prefix}"/>
+  <xacro:extension tf_prefix="${tf_prefix}" use_rear_extension="true"/>
+  <xacro:intelligent_controller tf_prefix="${tf_prefix}" mount="extension"/>
+  <xacro:arm tf_prefix="${tf_prefix}"/>
+  <xacro:camera tf_prefix="${tf_prefix}" mount="arm" camera_yaw="$(arg camera_yaw)"/>
+  <xacro:laser tf_prefix="${tf_prefix}"/>
+  <xacro:imu tf_prefix="${tf_prefix}"/>
+
+</robot>
