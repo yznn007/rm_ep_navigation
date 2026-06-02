@@ -16,17 +16,17 @@ publish_tf: true
 publish_acceleration: false
 
 # ========================
-# 输入1: EP 里程计 /odom
+# 输入1: EP 里程计 /odom (世界坐标系)
 # ========================
 odom0: /odom
-odom0_config: [false, false, false,  # 放弃里程计的绝对位置 X, Y, Z
-               false, false, false,  # 放弃里程计的绝对角度
-               true,  true,  false,  # 【关键】融合里程计的本体速度 vx, vy！(麦轮支持横移)
-               false, false, true,   # 融合里程计的自身角速度 vyaw
+odom0_config: [true,  true,  false,  # 融合里程计的绝对位置 X, Y
+               false, false, false,  # 放弃绝对角度（使用 IMU）
+               true,  true,  false,  # 融合世界坐标系速度 vx, vy
+               false, false, true,   # 融合角速度 vyaw
                false, false, false]
 odom0_queue_size: 10
 odom0_nodelay: true
-odom0_differential: false            # 纯速度输入不需要开启差分
+odom0_differential: false
 odom0_relative: false
 
 # ========================
