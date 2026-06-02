@@ -1,5 +1,5 @@
 <launch>
-  <arg name="model" default="$(find rm_ep_description)/urdf/robomaster_ep.urdf.xacro"/>
+  <arg name="model" default="$(find rm_ep_description)/urdf/rm_ep.urdf.xacro"/>
   <arg name="gui" default="false"/>
 
   <param name="robot_description" command="$(find xacro)/xacro $(arg model)"/>
