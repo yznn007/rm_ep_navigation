@@ -23,8 +23,8 @@
     <param name="angle_compensate" type="bool"  value="true"/>
   </node>
 
-  <!-- ========== 3. RoboMaster EP 驱动 ========== -->
-  <include file="$(find rm_ep_driver)/launch/rm_ep_bringup.launch">
+  <!-- ========== 3. RoboMaster EP 底盘驱动 ========== -->
+  <include file="$(find rm_ep_driver)/launch/rm_ep_chassis_bringup.launch">
     <arg name="ep_sn" value="$(arg ep_sn)"/>
     <arg name="ep_conn_type" value="$(arg ep_conn_type)"/>
     <arg name="ep_ip" value="$(arg ep_ip)"/>
