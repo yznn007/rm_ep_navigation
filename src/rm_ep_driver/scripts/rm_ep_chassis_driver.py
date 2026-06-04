@@ -79,6 +79,11 @@ class RmEpChassisDriver:
         self._yaw = None
         self._position_xy = None
 
+        # odom 归零变量
+        self._x0 = None
+        self._y0 = None
+        self._yaw0 = None
+
         # ROS 发布者
         self.odom_pub = rospy.Publisher("/odom", Odometry, queue_size=10)
         self.imu_pub = rospy.Publisher("/imu", Imu, queue_size=10)
@@ -336,20 +341,44 @@ class RmEpChassisDriver:
             self._publish_state_estimation(now)
 
     def _update_odom(self, pos, att, vel):
-        """更新里程计数据 - 坐标映射与 ROS2 一致"""
+        """更新里程计数据 - 归零+旋转+车体系速度"""
         px, py, pz = pos
         yaw_deg, pitch_deg, roll_deg = att
 
-        # 位置映射: SDK x -> ROS x, SDK y -> ROS y (取反)
-        position = self.odom_msg.pose.pose.position
-        x, y = position.x, position.y = (px, -py)
-        self._position_xy = (x, y)
+        # 首次记录原点
+        if self._x0 is None:
+            self._x0 = px
+            self._y0 = py
+            self._yaw0 = math.radians(yaw_deg)
+            rospy.loginfo("odom 原点已记录: x0=%.3f, y0=%.3f, yaw0=%.3f deg",
+                          self._x0, self._y0, yaw_deg)
 
-        # 姿态映射: yaw 取反, pitch 取反, roll 直接
-        orientation = self.odom_msg.pose.pose.orientation
-        yaw = -math.radians(yaw_deg)
+        # 归零
+        dx_ep = px - self._x0
+        dy_ep = py - self._y0
+        yaw_ep = math.radians(yaw_deg) - self._yaw0
+
+        # EP->ROS: y 取反
+        dx = dx_ep
+        dy = -dy_ep
+
+        # 旋转到启动坐标系
+        c = math.cos(-self._yaw0)
+        s = math.sin(-self._yaw0)
+        odom_x = c * dx - s * dy
+        odom_y = s * dx + c * dy
+
+        # 设置位置
+        position = self.odom_msg.pose.pose.position
+        position.x = odom_x
+        position.y = odom_y
+        self._position_xy = (odom_x, odom_y)
+
+        # yaw 扣除初始偏角
+        yaw = -yaw_ep
         self._yaw = yaw
 
+        # 姿态四元数
         if self.force_level:
             pitch = 0.0
             roll = 0.0
@@ -358,17 +387,17 @@ class RmEpChassisDriver:
             roll = math.radians(roll_deg)
 
         q = quaternion_from_euler(roll, pitch, yaw)
+        orientation = self.odom_msg.pose.pose.orientation
         orientation.x = q[0]
         orientation.y = q[1]
         orientation.z = q[2]
         orientation.w = q[3]
 
-        # 速度映射 (世界坐标系)
+        # 速度: 车体系 vbx, -vby
         if vel is not None:
             velocity = self.odom_msg.twist.twist.linear
-            # 使用世界坐标系速度，y 取反
-            velocity.x = vel[0]   # vgx
-            velocity.y = -vel[1]  # -vgy
+            velocity.x = vel[3]   # vbx
+            velocity.y = -vel[4]  # -vby
 
         # 角速度使用 IMU 的 gyro_z (在 _publish_state_estimation 中设置)
 
